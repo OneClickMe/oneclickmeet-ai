@@ -1,0 +1,428 @@
+{
+  "$defs": {
+    "ExtractedPlace": {
+      "description": "콘텐츠 한 건에서 찾은 장소 하나. 확실하지 않은 값은 null.",
+      "properties": {
+        "name": {
+          "description": "상호명/장소명. 지점명은 branch 로 분리",
+          "title": "Name",
+          "type": "string"
+        },
+        "branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "지점명 예: 성수점",
+          "title": "Branch"
+        },
+        "address_hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "본문에 적힌 주소 그대로",
+          "title": "Address Hint"
+        },
+        "region_hint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "동네/지역 단서 예: 성수, 연남동, 제주 애월",
+          "title": "Region Hint"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phone"
+        },
+        "primary_category": {
+          "default": "other",
+          "enum": [
+            "restaurant",
+            "cafe",
+            "bar",
+            "culture",
+            "activity",
+            "nature",
+            "shopping",
+            "stay",
+            "other"
+          ],
+          "title": "Primary Category",
+          "type": "string"
+        },
+        "sub_category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sub Category"
+        },
+        "tags": {
+          "description": "택소노미 태그 목록에서만",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "free_tags": {
+          "description": "목록에 없는 특징(해시태그 등), 최대 5개",
+          "items": {
+            "type": "string"
+          },
+          "title": "Free Tags",
+          "type": "array"
+        },
+        "signature_menus": {
+          "items": {
+            "$ref": "#/$defs/Menu"
+          },
+          "title": "Signature Menus",
+          "type": "array"
+        },
+        "price_level": {
+          "anyOf": [
+            {
+              "maximum": 4,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price Level"
+        },
+        "price_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price Text"
+        },
+        "opening_hours_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "영업시간 원문 그대로(요일별이면 전부). 예: '월-금 11:30-21:00 / 토,일 12:00-22:00'",
+          "title": "Opening Hours Text"
+        },
+        "closed_days_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Closed Days Text"
+        },
+        "break_time_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "브레이크타임 원문 예: '15:00-17:00'",
+          "title": "Break Time Text"
+        },
+        "last_order_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "라스트오더 원문 예: '21:00'",
+          "title": "Last Order Text"
+        },
+        "reservation_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reservation Text"
+        },
+        "reservation_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "naver",
+                "catchtable",
+                "phone",
+                "dm",
+                "walk_in",
+                "other"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reservation Method"
+        },
+        "est_cost_per_person": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "1인 예상 비용(원). 메뉴 가격 근거가 있을 때만",
+          "title": "Est Cost Per Person"
+        },
+        "rating": {
+          "anyOf": [
+            {
+              "maximum": 5,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "화면에 보이는 평점",
+          "title": "Rating"
+        },
+        "review_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Review Count"
+        },
+        "nearest_station_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "예: '압구정로데오역 5번 출구에서 534m'",
+          "title": "Nearest Station Text"
+        },
+        "parking_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parking Text"
+        },
+        "amenities": {
+          "description": "편의시설 예: 단체 이용 가능, 무선 인터넷",
+          "items": {
+            "type": "string"
+          },
+          "title": "Amenities",
+          "type": "array"
+        },
+        "stay_minutes_hint": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "본문에 '2시간 소요' 등 근거가 있을 때만",
+          "title": "Stay Minutes Hint"
+        },
+        "indoor": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "실내면 true, 실외면 false, 모르면 null",
+          "title": "Indoor"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "커플 데이트 관점 한두 문장 요약",
+          "title": "Summary"
+        },
+        "highlights": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Highlights",
+          "type": "array"
+        },
+        "cautions": {
+          "description": "웨이팅, 주차 불가 등 주의점",
+          "items": {
+            "type": "string"
+          },
+          "title": "Cautions",
+          "type": "array"
+        },
+        "evidence": {
+          "description": "근거가 된 원문 구절(짧게)",
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "confidence": {
+          "default": 0.5,
+          "description": "이 장소 정보 전체에 대한 확신도",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ExtractedPlace",
+      "type": "object"
+    },
+    "Menu": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "원 단위 정수",
+          "title": "Price"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Menu",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "places": {
+      "items": {
+        "$ref": "#/$defs/ExtractedPlace"
+      },
+      "title": "Places",
+      "type": "array"
+    },
+    "is_place_content": {
+      "default": true,
+      "description": "장소와 무관한 콘텐츠면 false",
+      "title": "Is Place Content",
+      "type": "boolean"
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Notes"
+    }
+  },
+  "title": "ExtractionResult",
+  "type": "object"
+}

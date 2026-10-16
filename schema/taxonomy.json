@@ -1,0 +1,587 @@
+{
+  "primary": {
+    "restaurant": {
+      "label": "맛집",
+      "sub": {
+        "korean": "한식",
+        "meat_bbq": "고기·구이",
+        "seafood": "해산물",
+        "japanese": "일식",
+        "chinese": "중식",
+        "western": "양식",
+        "asian": "아시안",
+        "brunch": "브런치",
+        "fusion": "퓨전",
+        "fast_food": "분식·패스트푸드",
+        "other": "기타"
+      }
+    },
+    "cafe": {
+      "label": "카페·디저트",
+      "sub": {
+        "dessert": "디저트",
+        "bakery": "베이커리",
+        "roastery": "로스터리",
+        "tea": "찻집",
+        "themed": "테마카페",
+        "other": "기타"
+      }
+    },
+    "bar": {
+      "label": "술집·바",
+      "sub": {
+        "wine_bar": "와인바",
+        "cocktail_bar": "칵테일바",
+        "izakaya": "이자카야",
+        "pub": "펍·호프",
+        "pocha": "포차",
+        "brewery": "브루어리",
+        "other": "기타"
+      }
+    },
+    "culture": {
+      "label": "전시·문화",
+      "sub": {
+        "exhibition": "전시",
+        "museum": "박물관·미술관",
+        "popup": "팝업스토어",
+        "performance": "공연",
+        "cinema": "영화관",
+        "bookstore": "서점",
+        "other": "기타"
+      }
+    },
+    "activity": {
+      "label": "액티비티·체험",
+      "sub": {
+        "workshop": "공방·원데이클래스",
+        "escape_room": "방탈출",
+        "photo": "사진관·포토부스",
+        "sports": "스포츠",
+        "theme_park": "테마파크",
+        "game": "게임·오락",
+        "other": "기타"
+      }
+    },
+    "nature": {
+      "label": "자연·산책",
+      "sub": {
+        "park": "공원",
+        "beach": "바다",
+        "mountain": "산",
+        "garden": "정원·수목원",
+        "scenic": "뷰포인트",
+        "other": "기타"
+      }
+    },
+    "shopping": {
+      "label": "쇼핑",
+      "sub": {
+        "shop": "소품샵·편집숍",
+        "market": "시장",
+        "mall": "쇼핑몰",
+        "other": "기타"
+      }
+    },
+    "stay": {
+      "label": "숙소",
+      "sub": {
+        "hotel": "호텔",
+        "pension": "펜션",
+        "glamping": "글램핑·캠핑",
+        "guesthouse": "게스트하우스·한옥스테이",
+        "other": "기타"
+      }
+    },
+    "other": {
+      "label": "기타",
+      "sub": {
+        "other": "기타"
+      }
+    }
+  },
+  "tags": {
+    "mood": [
+      "감성",
+      "아늑한",
+      "뷰맛집",
+      "힙한",
+      "조용한",
+      "고급스러운",
+      "레트로",
+      "이색적인",
+      "야경"
+    ],
+    "occasion": [
+      "기념일",
+      "첫데이트",
+      "데일리",
+      "생일",
+      "프로포즈"
+    ],
+    "setting": [
+      "실내",
+      "실외",
+      "루프탑",
+      "오션뷰",
+      "반려동물동반"
+    ],
+    "practical": [
+      "예약필수",
+      "웨이팅있음",
+      "주차가능",
+      "늦게까지영업",
+      "콜키지가능"
+    ]
+  },
+  "price_levels": {
+    "1": "1인 1만원 미만",
+    "2": "1인 1~3만원",
+    "3": "1인 3~6만원",
+    "4": "1인 6만원 이상"
+  },
+  "kakao_group_map": {
+    "FD6": [
+      "restaurant",
+      null
+    ],
+    "CE7": [
+      "cafe",
+      null
+    ],
+    "CT1": [
+      "culture",
+      null
+    ],
+    "AT4": [
+      "nature",
+      "scenic"
+    ],
+    "AD5": [
+      "stay",
+      null
+    ]
+  },
+  "keyword_rules": [
+    [
+      "와인",
+      "bar",
+      "wine_bar"
+    ],
+    [
+      "칵테일",
+      "bar",
+      "cocktail_bar"
+    ],
+    [
+      "이자카야",
+      "bar",
+      "izakaya"
+    ],
+    [
+      "포차",
+      "bar",
+      "pocha"
+    ],
+    [
+      "브루어리",
+      "bar",
+      "brewery"
+    ],
+    [
+      "맥주",
+      "bar",
+      "pub"
+    ],
+    [
+      "호프",
+      "bar",
+      "pub"
+    ],
+    [
+      "베이커리",
+      "cafe",
+      "bakery"
+    ],
+    [
+      "빵",
+      "cafe",
+      "bakery"
+    ],
+    [
+      "디저트",
+      "cafe",
+      "dessert"
+    ],
+    [
+      "케이크",
+      "cafe",
+      "dessert"
+    ],
+    [
+      "로스터리",
+      "cafe",
+      "roastery"
+    ],
+    [
+      "찻집",
+      "cafe",
+      "tea"
+    ],
+    [
+      "전통차",
+      "cafe",
+      "tea"
+    ],
+    [
+      "애견카페",
+      "cafe",
+      "themed"
+    ],
+    [
+      "보드게임카페",
+      "cafe",
+      "themed"
+    ],
+    [
+      "팝업",
+      "culture",
+      "popup"
+    ],
+    [
+      "전시",
+      "culture",
+      "exhibition"
+    ],
+    [
+      "갤러리",
+      "culture",
+      "exhibition"
+    ],
+    [
+      "미술관",
+      "culture",
+      "museum"
+    ],
+    [
+      "박물관",
+      "culture",
+      "museum"
+    ],
+    [
+      "공연",
+      "culture",
+      "performance"
+    ],
+    [
+      "뮤지컬",
+      "culture",
+      "performance"
+    ],
+    [
+      "영화관",
+      "culture",
+      "cinema"
+    ],
+    [
+      "서점",
+      "culture",
+      "bookstore"
+    ],
+    [
+      "공방",
+      "activity",
+      "workshop"
+    ],
+    [
+      "원데이클래스",
+      "activity",
+      "workshop"
+    ],
+    [
+      "방탈출",
+      "activity",
+      "escape_room"
+    ],
+    [
+      "사진관",
+      "activity",
+      "photo"
+    ],
+    [
+      "포토부스",
+      "activity",
+      "photo"
+    ],
+    [
+      "테마파크",
+      "activity",
+      "theme_park"
+    ],
+    [
+      "놀이공원",
+      "activity",
+      "theme_park"
+    ],
+    [
+      "볼링",
+      "activity",
+      "sports"
+    ],
+    [
+      "클라이밍",
+      "activity",
+      "sports"
+    ],
+    [
+      "오락실",
+      "activity",
+      "game"
+    ],
+    [
+      "수목원",
+      "nature",
+      "garden"
+    ],
+    [
+      "정원",
+      "nature",
+      "garden"
+    ],
+    [
+      "해변",
+      "nature",
+      "beach"
+    ],
+    [
+      "해수욕장",
+      "nature",
+      "beach"
+    ],
+    [
+      "공원",
+      "nature",
+      "park"
+    ],
+    [
+      "전망대",
+      "nature",
+      "scenic"
+    ],
+    [
+      "호텔",
+      "stay",
+      "hotel"
+    ],
+    [
+      "펜션",
+      "stay",
+      "pension"
+    ],
+    [
+      "글램핑",
+      "stay",
+      "glamping"
+    ],
+    [
+      "캠핑",
+      "stay",
+      "glamping"
+    ],
+    [
+      "한옥스테이",
+      "stay",
+      "guesthouse"
+    ],
+    [
+      "풀빌라",
+      "stay",
+      "pension"
+    ],
+    [
+      "독채",
+      "stay",
+      "pension"
+    ],
+    [
+      "리조트",
+      "stay",
+      "hotel"
+    ],
+    [
+      "스테이",
+      "stay",
+      "other"
+    ],
+    [
+      "숙소",
+      "stay",
+      "other"
+    ],
+    [
+      "게스트하우스",
+      "stay",
+      "guesthouse"
+    ],
+    [
+      "소품샵",
+      "shopping",
+      "shop"
+    ],
+    [
+      "편집숍",
+      "shopping",
+      "shop"
+    ],
+    [
+      "시장",
+      "shopping",
+      "market"
+    ],
+    [
+      "고기",
+      "restaurant",
+      "meat_bbq"
+    ],
+    [
+      "삼겹살",
+      "restaurant",
+      "meat_bbq"
+    ],
+    [
+      "갈비",
+      "restaurant",
+      "meat_bbq"
+    ],
+    [
+      "오마카세",
+      "restaurant",
+      "japanese"
+    ],
+    [
+      "스시",
+      "restaurant",
+      "japanese"
+    ],
+    [
+      "초밥",
+      "restaurant",
+      "japanese"
+    ],
+    [
+      "라멘",
+      "restaurant",
+      "japanese"
+    ],
+    [
+      "일식",
+      "restaurant",
+      "japanese"
+    ],
+    [
+      "중식",
+      "restaurant",
+      "chinese"
+    ],
+    [
+      "파스타",
+      "restaurant",
+      "western"
+    ],
+    [
+      "스테이크",
+      "restaurant",
+      "western"
+    ],
+    [
+      "양식",
+      "restaurant",
+      "western"
+    ],
+    [
+      "이탈리안",
+      "restaurant",
+      "western"
+    ],
+    [
+      "태국",
+      "restaurant",
+      "asian"
+    ],
+    [
+      "베트남",
+      "restaurant",
+      "asian"
+    ],
+    [
+      "쌀국수",
+      "restaurant",
+      "asian"
+    ],
+    [
+      "브런치",
+      "restaurant",
+      "brunch"
+    ],
+    [
+      "해산물",
+      "restaurant",
+      "seafood"
+    ],
+    [
+      "횟집",
+      "restaurant",
+      "seafood"
+    ],
+    [
+      "한식",
+      "restaurant",
+      "korean"
+    ],
+    [
+      "떡볶이",
+      "restaurant",
+      "fast_food"
+    ],
+    [
+      "분식",
+      "restaurant",
+      "fast_food"
+    ],
+    [
+      "버거",
+      "restaurant",
+      "fast_food"
+    ],
+    [
+      "술집",
+      "bar",
+      "other"
+    ],
+    [
+      "주점",
+      "bar",
+      "other"
+    ],
+    [
+      "바(BAR)",
+      "bar",
+      "other"
+    ],
+    [
+      "카페",
+      "cafe",
+      "other"
+    ],
+    [
+      "맛집",
+      "restaurant",
+      "other"
+    ],
+    [
+      "음식점",
+      "restaurant",
+      "other"
+    ]
+  ]
+}

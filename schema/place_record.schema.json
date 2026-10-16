@@ -1,0 +1,920 @@
+{
+  "$defs": {
+    "Address": {
+      "properties": {
+        "road": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Road"
+        },
+        "jibun": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Jibun"
+        },
+        "sido": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sido"
+        },
+        "sigungu": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sigungu"
+        },
+        "dong": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dong"
+        }
+      },
+      "title": "Address",
+      "type": "object"
+    },
+    "Classification": {
+      "properties": {
+        "primary_category": {
+          "enum": [
+            "restaurant",
+            "cafe",
+            "bar",
+            "culture",
+            "activity",
+            "nature",
+            "shopping",
+            "stay",
+            "other"
+          ],
+          "title": "Primary Category",
+          "type": "string"
+        },
+        "primary_label": {
+          "title": "Primary Label",
+          "type": "string"
+        },
+        "sub_category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sub Category"
+        },
+        "sub_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sub Label"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "free_tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Free Tags",
+          "type": "array"
+        }
+      },
+      "required": [
+        "primary_category",
+        "primary_label"
+      ],
+      "title": "Classification",
+      "type": "object"
+    },
+    "Confidence": {
+      "properties": {
+        "overall": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Overall",
+          "type": "number"
+        },
+        "extraction": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Extraction",
+          "type": "number"
+        },
+        "geo_match": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Geo Match"
+        }
+      },
+      "required": [
+        "overall",
+        "extraction"
+      ],
+      "title": "Confidence",
+      "type": "object"
+    },
+    "Content": {
+      "properties": {
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        },
+        "highlights": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Highlights",
+          "type": "array"
+        },
+        "cautions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Cautions",
+          "type": "array"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "raw_excerpt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "원문 일부(개인정보 마스킹 후, 최대 1000자)",
+          "title": "Raw Excerpt"
+        }
+      },
+      "title": "Content",
+      "type": "object"
+    },
+    "Details": {
+      "properties": {
+        "signature_menus": {
+          "items": {
+            "$ref": "#/$defs/Menu"
+          },
+          "title": "Signature Menus",
+          "type": "array"
+        },
+        "price_level": {
+          "anyOf": [
+            {
+              "maximum": 4,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price Level"
+        },
+        "price_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price Text"
+        },
+        "est_cost_per_person": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "1인 예상 비용(원)",
+          "title": "Est Cost Per Person"
+        },
+        "opening_hours_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Opening Hours Text"
+        },
+        "closed_days_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Closed Days Text"
+        },
+        "opening_hours": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WeeklyHours"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reservation_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reservation Text"
+        },
+        "reservation_method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reservation Method"
+        },
+        "reservation_required": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reservation Required"
+        },
+        "waiting_level": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "some",
+                "long"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Waiting Level"
+        },
+        "stay_minutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "평균 체류시간(분)",
+          "title": "Stay Minutes"
+        },
+        "indoor": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Indoor"
+        },
+        "rating": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rating"
+        },
+        "review_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Review Count"
+        },
+        "nearest_station": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nearest Station"
+        },
+        "parking": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parking"
+        },
+        "amenities": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Amenities",
+          "type": "array"
+        }
+      },
+      "title": "Details",
+      "type": "object"
+    },
+    "ExternalIds": {
+      "properties": {
+        "naver_place_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Naver Place Id"
+        },
+        "kakao_place_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kakao Place Id"
+        }
+      },
+      "title": "ExternalIds",
+      "type": "object"
+    },
+    "FieldSource": {
+      "properties": {
+        "source": {
+          "description": "ocr | link | llm | heuristic | geo:kakao | default | user …",
+          "title": "Source",
+          "type": "string"
+        },
+        "collected_at": {
+          "title": "Collected At",
+          "type": "string"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "FieldSource",
+      "type": "object"
+    },
+    "GeoPoint": {
+      "properties": {
+        "lat": {
+          "title": "Lat",
+          "type": "number"
+        },
+        "lng": {
+          "title": "Lng",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lat",
+        "lng"
+      ],
+      "title": "GeoPoint",
+      "type": "object"
+    },
+    "Menu": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "원 단위 정수",
+          "title": "Price"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Menu",
+      "type": "object"
+    },
+    "PlaceInfo": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "branch": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Branch"
+        },
+        "address": {
+          "$ref": "#/$defs/Address"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GeoPoint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phone"
+        },
+        "external_ids": {
+          "$ref": "#/$defs/ExternalIds"
+        },
+        "map_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Map Url"
+        },
+        "provider_category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "지도 API가 준 원본 카테고리 문자열",
+          "title": "Provider Category"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "PlaceInfo",
+      "type": "object"
+    },
+    "SourceInfo": {
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/SourceType"
+        },
+        "input_kind": {
+          "enum": [
+            "link",
+            "image",
+            "text"
+          ],
+          "title": "Input Kind",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "final_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Final Url"
+        },
+        "file_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File Name"
+        },
+        "fetch_status": {
+          "default": "skipped",
+          "enum": [
+            "ok",
+            "blocked",
+            "error",
+            "skipped"
+          ],
+          "title": "Fetch Status",
+          "type": "string"
+        },
+        "fetched_at": {
+          "title": "Fetched At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "input_kind"
+      ],
+      "title": "SourceInfo",
+      "type": "object"
+    },
+    "SourceType": {
+      "enum": [
+        "instagram_link",
+        "naver_blog",
+        "naver_place",
+        "naver_short",
+        "web_link",
+        "image",
+        "text"
+      ],
+      "title": "SourceType",
+      "type": "string"
+    },
+    "Status": {
+      "enum": [
+        "complete",
+        "needs_review",
+        "needs_user_input",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "TimeRange": {
+      "properties": {
+        "open": {
+          "description": "HH:MM",
+          "pattern": "^([0-3]\\d|4[0-7]):[0-5]\\d$",
+          "title": "Open",
+          "type": "string"
+        },
+        "close": {
+          "description": "HH:MM, 자정 넘으면 24 이상 (예: 26:00 = 다음날 02:00)",
+          "pattern": "^([0-3]\\d|4[0-7]):[0-5]\\d$",
+          "title": "Close",
+          "type": "string"
+        }
+      },
+      "required": [
+        "open",
+        "close"
+      ],
+      "title": "TimeRange",
+      "type": "object"
+    },
+    "WeeklyHours": {
+      "description": "구조화된 영업시간. 요일 키가 없으면 '정보 없음', 빈 리스트면 '휴무'.",
+      "properties": {
+        "days": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/TimeRange"
+            },
+            "type": "array"
+          },
+          "title": "Days",
+          "type": "object"
+        },
+        "breaks": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/TimeRange"
+            },
+            "type": "array"
+          },
+          "title": "Breaks",
+          "type": "object"
+        },
+        "last_order": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Last Order",
+          "type": "object"
+        },
+        "closed_days": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Closed Days",
+          "type": "array"
+        },
+        "partial": {
+          "default": false,
+          "description": "일부 요일/시작시간만 알려진 경우",
+          "title": "Partial",
+          "type": "boolean"
+        },
+        "earliest_open": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "'17:00에 영업 시작'처럼 시작 시각만 알 때",
+          "title": "Earliest Open"
+        },
+        "raw": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw"
+        }
+      },
+      "title": "WeeklyHours",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "default": "0.2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    },
+    "dedupe_key": {
+      "title": "Dedupe Key",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/Status"
+    },
+    "review_reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Review Reasons",
+      "type": "array"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/SourceInfo"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "place": {
+      "$ref": "#/$defs/PlaceInfo"
+    },
+    "classification": {
+      "$ref": "#/$defs/Classification"
+    },
+    "details": {
+      "$ref": "#/$defs/Details"
+    },
+    "content": {
+      "$ref": "#/$defs/Content"
+    },
+    "confidence": {
+      "$ref": "#/$defs/Confidence"
+    },
+    "embedding_text": {
+      "description": "추천 단계에서 임베딩할 요약 문자열",
+      "title": "Embedding Text",
+      "type": "string"
+    },
+    "provenance": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FieldSource"
+      },
+      "description": "필드별 출처·수집일·신뢰도",
+      "title": "Provenance",
+      "type": "object"
+    },
+    "missing_fields": {
+      "description": "코스 추천에 필요한데 비어 있는 필드 (opening_hours, location, est_cost_per_person)",
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing Fields",
+      "type": "array"
+    },
+    "visited": {
+      "default": false,
+      "description": "다녀온 곳 (코스 추천에서 '새로운 곳' 가중치)",
+      "title": "Visited",
+      "type": "boolean"
+    },
+    "extractor": {
+      "description": "사용한 추출기/모델 식별자",
+      "title": "Extractor",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "updated_at": {
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "record_id",
+    "dedupe_key",
+    "status",
+    "sources",
+    "place",
+    "classification",
+    "confidence",
+    "embedding_text",
+    "extractor"
+  ],
+  "title": "PlaceRecord",
+  "type": "object"
+}

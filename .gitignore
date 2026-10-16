@@ -1,0 +1,20 @@
+# 비밀값·로컬 데이터
+.env
+data/
+
+# Python
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# macOS
+.DS_Store
+
+# 로컬 테스트 전용 (실험 서버·화면, legacy 코스 추천)
+placeflow/server.py
+placeflow/web/
+placeflow/v3/api.py
+placeflow/route.py
+eval/course_eval.py
+eval/course_report.md
+tests/test_legacy_local.py

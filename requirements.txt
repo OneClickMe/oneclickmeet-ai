@@ -1,0 +1,15 @@
+# 필수
+pydantic>=2.5
+
+# 선택: 쓰는 LLM 제공자만 설치
+# openai>=1.40
+# anthropic>=0.40
+# google-genai>=1.20
+
+# 선택: LLM 없이 이미지 읽기
+# pytesseract
+# pillow
+
+# 개발·테스트
+pytest
+jsonschema

@@ -1,0 +1,24 @@
+{
+  "https://www.instagram.com/p/FAKE001/": {
+    "file": "ig_ok.html"
+  },
+  "https://www.instagram.com/reel/FAKE002/": {
+    "file": null,
+    "status": 200,
+    "final_url": "https://www.instagram.com/accounts/login/"
+  },
+  "https://m.blog.naver.com/fakeblog/220000000001": {
+    "file": "naver_blog_single.html"
+  },
+  "https://m.blog.naver.com/fakeblog/220000000002": {
+    "file": "naver_blog_multi.html"
+  },
+  "https://naver.me/FAKE05": {
+    "file": null,
+    "status": 200,
+    "final_url": "https://m.place.naver.com/accommodation/1900000005/home"
+  },
+  "https://m.place.naver.com/accommodation/1900000005/home": {
+    "file": "naver_place.html"
+  }
+}

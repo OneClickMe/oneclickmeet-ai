@@ -1,0 +1,116 @@
+{
+  "schema_version": "0.2.0",
+  "record_id": "96bb67c6-2785-4e04-a501-d1cfd5700f47",
+  "dedupe_key": "name:포근곰팝업스토어@성동구",
+  "status": "complete",
+  "review_reasons": [],
+  "sources": [
+    {
+      "type": "image",
+      "input_kind": "image",
+      "url": null,
+      "final_url": null,
+      "file_name": "i3_story_popup.png",
+      "fetch_status": "ok",
+      "fetched_at": "2026-10-07T07:52:59+00:00"
+    }
+  ],
+  "place": {
+    "name": "포근곰 팝업스토어",
+    "branch": null,
+    "address": {
+      "road": "서울 성동구 성수이로 88",
+      "jibun": "서울 성동구 성수동2가 1-1",
+      "sido": "서울특별시",
+      "sigungu": "성동구",
+      "dong": "성수동2가"
+    },
+    "location": {
+      "lat": 37.544,
+      "lng": 127.056
+    },
+    "phone": null,
+    "external_ids": {
+      "naver_place_id": null,
+      "kakao_place_id": null
+    },
+    "map_url": "https://place.map.kakao.com/K1010",
+    "provider_category": "문화,예술 > 팝업스토어"
+  },
+  "classification": {
+    "primary_category": "culture",
+    "primary_label": "전시·문화",
+    "sub_category": "popup",
+    "sub_label": "팝업스토어",
+    "tags": [
+      "예약필수"
+    ],
+    "free_tags": []
+  },
+  "details": {
+    "signature_menus": [],
+    "price_level": null,
+    "price_text": null,
+    "est_cost_per_person": null,
+    "opening_hours_text": null,
+    "closed_days_text": null,
+    "opening_hours": null,
+    "reservation_text": "사전예약 필수",
+    "reservation_method": null,
+    "reservation_required": true,
+    "waiting_level": null,
+    "stay_minutes": 40,
+    "indoor": true,
+    "rating": null,
+    "review_count": null,
+    "nearest_station": null,
+    "parking": null,
+    "amenities": []
+  },
+  "content": {
+    "summary": null,
+    "highlights": [],
+    "cautions": [],
+    "evidence": [
+      "포근곰 팝업스토어",
+      "서울 성동구 성수이로 88"
+    ],
+    "raw_excerpt": "✨ 팝업 오픈 ✨\n포근곰 팝업스토어\n10.1 ~ 10.31\n서울 성동구 성수이로 88\n굿즈 + 포토존 / 사전예약 필수\n@***"
+  },
+  "confidence": {
+    "overall": 0.825,
+    "extraction": 0.65,
+    "geo_match": 1.0
+  },
+  "embedding_text": "포근곰 팝업스토어 | 전시·문화/팝업스토어 | 서울특별시 성동구 성수동2가 | #예약필수",
+  "provenance": {
+    "stay_minutes": {
+      "source": "default:category",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.5
+    },
+    "indoor": {
+      "source": "default:category",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.5
+    },
+    "location": {
+      "source": "geo:fixture",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 1.0
+    },
+    "address": {
+      "source": "geo:fixture",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 1.0
+    }
+  },
+  "missing_fields": [
+    "opening_hours",
+    "est_cost_per_person"
+  ],
+  "visited": false,
+  "extractor": "heuristic",
+  "created_at": "2026-10-07T07:52:59+00:00",
+  "updated_at": "2026-10-07T07:52:59+00:00"
+}

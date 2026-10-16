@@ -1,0 +1,194 @@
+{
+  "schema_version": "0.2.0",
+  "record_id": "a6f35cf8-3585-4a54-aa14-f600a8b83dc8",
+  "dedupe_key": "name:비노루체연남점@마포구",
+  "status": "complete",
+  "review_reasons": [],
+  "sources": [
+    {
+      "type": "instagram_link",
+      "input_kind": "link",
+      "url": "https://www.instagram.com/p/FAKE001/",
+      "final_url": "https://www.instagram.com/p/FAKE001/",
+      "file_name": null,
+      "fetch_status": "ok",
+      "fetched_at": "2026-10-07T07:52:58+00:00"
+    }
+  ],
+  "place": {
+    "name": "비노 루체",
+    "branch": "연남점",
+    "address": {
+      "road": "서울 마포구 성미산로 77",
+      "jibun": "서울 마포구 연남동 239-1",
+      "sido": "서울특별시",
+      "sigungu": "마포구",
+      "dong": "연남동"
+    },
+    "location": {
+      "lat": 37.5631,
+      "lng": 126.9234
+    },
+    "phone": "02-0000-1111",
+    "external_ids": {
+      "naver_place_id": null,
+      "kakao_place_id": null
+    },
+    "map_url": "https://place.map.kakao.com/K1001",
+    "provider_category": "음식점 > 술집 > 와인바"
+  },
+  "classification": {
+    "primary_category": "bar",
+    "primary_label": "술집·바",
+    "sub_category": "wine_bar",
+    "sub_label": "와인바",
+    "tags": [
+      "아늑한",
+      "조용한",
+      "기념일",
+      "예약필수",
+      "콜키지가능"
+    ],
+    "free_tags": [
+      "연남동와인바",
+      "와인바추천",
+      "커플데이트",
+      "기념일"
+    ]
+  },
+  "details": {
+    "signature_menus": [
+      {
+        "name": "내추럴 와인 글라스",
+        "price": 14000
+      },
+      {
+        "name": "트러플 감자튀김",
+        "price": 18000
+      }
+    ],
+    "price_level": 2,
+    "price_text": null,
+    "est_cost_per_person": 32000,
+    "opening_hours_text": "18:00~02:00 (일요일 휴무) 예약 필수",
+    "closed_days_text": "00~02:00 (일요일 휴무) 예약 필수",
+    "opening_hours": {
+      "days": {
+        "mon": [
+          {
+            "open": "18:00",
+            "close": "26:00"
+          }
+        ],
+        "tue": [
+          {
+            "open": "18:00",
+            "close": "26:00"
+          }
+        ],
+        "wed": [
+          {
+            "open": "18:00",
+            "close": "26:00"
+          }
+        ],
+        "thu": [
+          {
+            "open": "18:00",
+            "close": "26:00"
+          }
+        ],
+        "fri": [
+          {
+            "open": "18:00",
+            "close": "26:00"
+          }
+        ],
+        "sat": [
+          {
+            "open": "18:00",
+            "close": "26:00"
+          }
+        ],
+        "sun": []
+      },
+      "breaks": {},
+      "last_order": {},
+      "closed_days": [
+        "sun"
+      ],
+      "partial": false,
+      "earliest_open": null,
+      "raw": "18:00~02:00 (일요일 휴무) 예약 필수 / 00~02:00 (일요일 휴무) 예약 필수"
+    },
+    "reservation_text": "00~02:00 (일요일 휴무) 예약 필수",
+    "reservation_method": null,
+    "reservation_required": true,
+    "waiting_level": null,
+    "stay_minutes": 100,
+    "indoor": true,
+    "rating": null,
+    "review_count": null,
+    "nearest_station": null,
+    "parking": null,
+    "amenities": []
+  },
+  "content": {
+    "summary": null,
+    "highlights": [],
+    "cautions": [],
+    "evidence": [
+      "비노 루체 연남점 서울 마포구 성미산로 77 지하1층",
+      "서울 마포구 성미산로 77"
+    ],
+    "raw_excerpt": "데이트로그 on Instagram: \"연남동 숨은 와인바 🍷\"\n📍비노 루체 연남점 서울 마포구 성미산로 77 지하1층\n분위기 미쳤어요… 조용하고 아늑해서 기념일 데이트로 딱🥂 콜키지 가능!\n내추럴 와인 글라스 14,000원 / 트러플 감자튀김 18,000원\n영업 18:00~02:00 (일요일 휴무) 예약 필수\n#연남동와인바 #와인바추천 #커플데이트 #기념일"
+  },
+  "confidence": {
+    "overall": 0.86,
+    "extraction": 0.75,
+    "geo_match": 0.97
+  },
+  "embedding_text": "비노 루체 연남점 | 술집·바/와인바 | 서울특별시 마포구 연남동 | #아늑한 #조용한 #기념일 #예약필수 #콜키지가능 #연남동와인바 #와인바추천 #커플데이트 #기념일 | 가격대 1인 1~3만원 | 대표메뉴 내추럴 와인 글라스, 트러플 감자튀김",
+  "provenance": {
+    "opening_hours": {
+      "source": "instagram_link:heuristic",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.75
+    },
+    "est_cost_per_person": {
+      "source": "instagram_link:heuristic",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.75
+    },
+    "stay_minutes": {
+      "source": "default:category",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.5
+    },
+    "indoor": {
+      "source": "default:category",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.5
+    },
+    "signature_menus": {
+      "source": "instagram_link:heuristic",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.75
+    },
+    "location": {
+      "source": "geo:fixture",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.97
+    },
+    "address": {
+      "source": "geo:fixture",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.97
+    }
+  },
+  "missing_fields": [],
+  "visited": false,
+  "extractor": "heuristic",
+  "created_at": "2026-10-07T07:52:59+00:00",
+  "updated_at": "2026-10-07T07:52:59+00:00"
+}

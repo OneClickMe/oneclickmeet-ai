@@ -1,0 +1,122 @@
+[
+  {
+    "id": "K1001",
+    "name": "비노 루체 연남점",
+    "category": "음식점 > 술집 > 와인바",
+    "kakao_group": "FD6",
+    "road_address": "서울 마포구 성미산로 77",
+    "jibun_address": "서울 마포구 연남동 239-1",
+    "lat": 37.5631,
+    "lng": 126.9234,
+    "phone": "02-0000-1111",
+    "url": "https://place.map.kakao.com/K1001"
+  },
+  {
+    "id": "K1002",
+    "name": "카페 온담 성수점",
+    "category": "음식점 > 카페 > 디저트카페",
+    "kakao_group": "CE7",
+    "road_address": "서울 성동구 서울숲2길 18",
+    "jibun_address": "서울 성동구 성수동1가 685-1",
+    "lat": 37.547,
+    "lng": 127.041,
+    "phone": "02-0000-1234",
+    "url": "https://place.map.kakao.com/K1002"
+  },
+  {
+    "id": "K1003",
+    "name": "카페 온담 망원점",
+    "category": "음식점 > 카페",
+    "kakao_group": "CE7",
+    "road_address": "서울 마포구 포은로 10",
+    "jibun_address": "서울 마포구 망원동 400-1",
+    "lat": 37.556,
+    "lng": 126.905,
+    "phone": "02-0000-4321",
+    "url": "https://place.map.kakao.com/K1003"
+  },
+  {
+    "id": "K1004",
+    "name": "반지공방 은솔",
+    "category": "가정,생활 > 공방",
+    "kakao_group": null,
+    "road_address": "서울 중구 수표로 21",
+    "jibun_address": "서울 중구 저동2가 1-1",
+    "lat": 37.565,
+    "lng": 126.99,
+    "phone": null,
+    "url": "https://place.map.kakao.com/K1004"
+  },
+  {
+    "id": "K1005",
+    "name": "갤러리 빛결",
+    "category": "문화,예술 > 갤러리",
+    "kakao_group": "CT1",
+    "road_address": "서울 종로구 삼일대로 300",
+    "jibun_address": "서울 종로구 낙원동 1-1",
+    "lat": 37.572,
+    "lng": 126.988,
+    "phone": null,
+    "url": "https://place.map.kakao.com/K1005"
+  },
+  {
+    "id": "K1006",
+    "name": "이자카야 달밤",
+    "category": "음식점 > 술집 > 일본식주점",
+    "kakao_group": "FD6",
+    "road_address": "서울 중구 을지로 120",
+    "jibun_address": "서울 중구 을지로3가 1-1",
+    "lat": 37.566,
+    "lng": 126.992,
+    "phone": "02-0000-5678",
+    "url": "https://place.map.kakao.com/K1006"
+  },
+  {
+    "id": "K1007",
+    "name": "바다정원 글램핑",
+    "category": "여행 > 숙박 > 야영,캠핑장",
+    "kakao_group": "AD5",
+    "road_address": "강원특별자치도 강릉시 사천면 해안로 900",
+    "jibun_address": "강원 강릉시 사천면 산대월리 1",
+    "lat": 37.84,
+    "lng": 128.87,
+    "phone": null,
+    "url": "https://place.map.kakao.com/K1007"
+  },
+  {
+    "id": "K1008",
+    "name": "모모 베이커리",
+    "category": "음식점 > 간식 > 제과,베이커리",
+    "kakao_group": "CE7",
+    "road_address": "서울 마포구 동교로 250",
+    "jibun_address": "서울 마포구 연남동 1-1",
+    "lat": 37.561,
+    "lng": 126.925,
+    "phone": null,
+    "url": "https://place.map.kakao.com/K1008"
+  },
+  {
+    "id": "K1009",
+    "name": "미스터리룸 홍대점",
+    "category": "가정,생활 > 여가시설 > 방탈출카페",
+    "kakao_group": null,
+    "road_address": "서울 마포구 와우산로 33",
+    "jibun_address": "서울 마포구 서교동 1-1",
+    "lat": 37.55,
+    "lng": 126.923,
+    "phone": null,
+    "url": "https://place.map.kakao.com/K1009"
+  },
+  {
+    "id": "K1010",
+    "name": "포근곰 팝업스토어",
+    "category": "문화,예술 > 팝업스토어",
+    "kakao_group": null,
+    "road_address": "서울 성동구 성수이로 88",
+    "jibun_address": "서울 성동구 성수동2가 1-1",
+    "lat": 37.544,
+    "lng": 127.056,
+    "phone": null,
+    "url": "https://place.map.kakao.com/K1010"
+  }
+]

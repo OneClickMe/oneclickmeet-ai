@@ -1,0 +1,195 @@
+{
+  "schema_version": "0.2.0",
+  "record_id": "514d95a7-99ef-439a-943e-6849084d3d8f",
+  "dedupe_key": "name:카페온담성수점@성동구",
+  "status": "complete",
+  "review_reasons": [],
+  "sources": [
+    {
+      "type": "naver_blog",
+      "input_kind": "link",
+      "url": "https://m.blog.naver.com/fakeblog/220000000001",
+      "final_url": "https://m.blog.naver.com/fakeblog/220000000001",
+      "file_name": null,
+      "fetch_status": "ok",
+      "fetched_at": "2026-10-07T07:52:59+00:00"
+    }
+  ],
+  "place": {
+    "name": "카페 온담",
+    "branch": "성수점",
+    "address": {
+      "road": "서울 성동구 서울숲2길 18",
+      "jibun": "서울 성동구 성수동1가 685-1",
+      "sido": "서울특별시",
+      "sigungu": "성동구",
+      "dong": "성수동1가"
+    },
+    "location": {
+      "lat": 37.547,
+      "lng": 127.041
+    },
+    "phone": "02-0000-1234",
+    "external_ids": {
+      "naver_place_id": null,
+      "kakao_place_id": null
+    },
+    "map_url": "https://place.map.kakao.com/K1002",
+    "provider_category": "음식점 > 카페 > 디저트카페"
+  },
+  "classification": {
+    "primary_category": "cafe",
+    "primary_label": "카페·디저트",
+    "sub_category": "dessert",
+    "sub_label": "디저트",
+    "tags": [
+      "뷰맛집",
+      "기념일",
+      "예약필수",
+      "웨이팅있음"
+    ],
+    "free_tags": [
+      "성수카페",
+      "서울숲카페",
+      "디저트맛집",
+      "기념일카페"
+    ]
+  },
+  "details": {
+    "signature_menus": [
+      {
+        "name": "딸기 생크림 케이크",
+        "price": 8500
+      },
+      {
+        "name": "아인슈페너",
+        "price": 6500
+      }
+    ],
+    "price_level": 1,
+    "price_text": null,
+    "est_cost_per_person": 10000,
+    "opening_hours_text": "11:00 - 22:00 / 매주 월요일 휴무",
+    "closed_days_text": "매주 월요일 휴무",
+    "opening_hours": {
+      "days": {
+        "tue": [
+          {
+            "open": "11:00",
+            "close": "22:00"
+          }
+        ],
+        "wed": [
+          {
+            "open": "11:00",
+            "close": "22:00"
+          }
+        ],
+        "thu": [
+          {
+            "open": "11:00",
+            "close": "22:00"
+          }
+        ],
+        "fri": [
+          {
+            "open": "11:00",
+            "close": "22:00"
+          }
+        ],
+        "sat": [
+          {
+            "open": "11:00",
+            "close": "22:00"
+          }
+        ],
+        "sun": [
+          {
+            "open": "11:00",
+            "close": "22:00"
+          }
+        ],
+        "mon": []
+      },
+      "breaks": {},
+      "last_order": {},
+      "closed_days": [
+        "mon"
+      ],
+      "partial": false,
+      "earliest_open": null,
+      "raw": "11:00 - 22:00 / 매주 월요일 휴무 / 매주 월요일 휴무"
+    },
+    "reservation_text": "레터링 케이크는 3일 전 예약 필수래요.",
+    "reservation_method": null,
+    "reservation_required": true,
+    "waiting_level": "some",
+    "stay_minutes": 60,
+    "indoor": true,
+    "rating": null,
+    "review_count": null,
+    "nearest_station": null,
+    "parking": null,
+    "amenities": []
+  },
+  "content": {
+    "summary": null,
+    "highlights": [],
+    "cautions": [
+      "웨이팅 있음"
+    ],
+    "evidence": [
+      "카페 온담 성수점",
+      "서울 성동구 서울숲2길 18 2층"
+    ],
+    "raw_excerpt": "[성수 데이트] 통창 뷰 디저트카페 카페 온담 성수점 내돈내산 후기\n성수동 서울숲 근처 디저트 카페 카페 온담 다녀왔어요\n남자친구랑 100일 기념으로 다녀온 카페 온담 성수점 후기예요 ☕\n📍 카페 온담 성수점\n주소 : 서울 성동구 서울숲2길 18 2층\n영업시간 : 11:00 - 22:00 / 매주 월요일 휴무\n전화 : 02-0000-1234\n딸기 생크림 케이크 8,500원 · 아인슈페너 6,500원\n통창 너머로 서울숲이 보여서 뷰맛집이에요. 주말엔 웨이팅 있으니 평일 추천!\n레터링 케이크는 3일 전 예약 필수래요.\n#성수카페 #서울숲카페 #디저트맛집 #기념일카페"
+  },
+  "confidence": {
+    "overall": 0.885,
+    "extraction": 0.8,
+    "geo_match": 0.97
+  },
+  "embedding_text": "카페 온담 성수점 | 카페·디저트/디저트 | 서울특별시 성동구 성수동1가 | #뷰맛집 #기념일 #예약필수 #웨이팅있음 #성수카페 #서울숲카페 #디저트맛집 #기념일카페 | 가격대 1인 1만원 미만 | 대표메뉴 딸기 생크림 케이크, 아인슈페너",
+  "provenance": {
+    "opening_hours": {
+      "source": "naver_blog:heuristic",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.8
+    },
+    "est_cost_per_person": {
+      "source": "naver_blog:heuristic",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.8
+    },
+    "stay_minutes": {
+      "source": "default:category",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.5
+    },
+    "indoor": {
+      "source": "default:category",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.5
+    },
+    "signature_menus": {
+      "source": "naver_blog:heuristic",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.8
+    },
+    "location": {
+      "source": "geo:fixture",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.97
+    },
+    "address": {
+      "source": "geo:fixture",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.97
+    }
+  },
+  "missing_fields": [],
+  "visited": false,
+  "extractor": "heuristic",
+  "created_at": "2026-10-07T07:52:59+00:00",
+  "updated_at": "2026-10-07T07:52:59+00:00"
+}

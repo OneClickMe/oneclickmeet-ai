@@ -1,0 +1,158 @@
+{
+  "schema_version": "0.2.0",
+  "record_id": "bdc99ae4-c07a-4960-a3f1-bcf3d2e8f036",
+  "dedupe_key": "name:아루도산공원점@강남구",
+  "status": "needs_review",
+  "review_reasons": [
+    "지도 보강 미실행(geo=none) — 위치 미확정",
+    "전체 신뢰도 0.68 < 0.7"
+  ],
+  "sources": [
+    {
+      "type": "text",
+      "input_kind": "text",
+      "url": null,
+      "final_url": null,
+      "file_name": null,
+      "fetch_status": "ok",
+      "fetched_at": "2026-10-07T07:52:59+00:00"
+    }
+  ],
+  "place": {
+    "name": "아루",
+    "branch": "도산공원점",
+    "address": {
+      "road": "서울 강남구 언주로164길 34-2 2층",
+      "jibun": null,
+      "sido": "서울특별시",
+      "sigungu": "강남구",
+      "dong": null
+    },
+    "location": null,
+    "phone": "0507-1396-3443",
+    "external_ids": {
+      "naver_place_id": null,
+      "kakao_place_id": null
+    },
+    "map_url": null,
+    "provider_category": null
+  },
+  "classification": {
+    "primary_category": "restaurant",
+    "primary_label": "맛집",
+    "sub_category": "japanese",
+    "sub_label": "일식",
+    "tags": [],
+    "free_tags": []
+  },
+  "details": {
+    "signature_menus": [],
+    "price_level": null,
+    "price_text": null,
+    "est_cost_per_person": null,
+    "opening_hours_text": "17:00에 영업 시작",
+    "closed_days_text": null,
+    "opening_hours": {
+      "days": {},
+      "breaks": {},
+      "last_order": {},
+      "closed_days": [],
+      "partial": true,
+      "earliest_open": "17:00",
+      "raw": "17:00에 영업 시작"
+    },
+    "reservation_text": null,
+    "reservation_method": "catchtable",
+    "reservation_required": null,
+    "waiting_level": null,
+    "stay_minutes": 90,
+    "indoor": true,
+    "rating": 4.88,
+    "review_count": 539,
+    "nearest_station": "압구정로데오역 5번 출구에서 534m",
+    "parking": "주차,발렛 가능하며 압구정,압구정로데오역 사이",
+    "amenities": [
+      "단체 이용 가능",
+      "남/녀 화장실 구분",
+      "무선 인터넷",
+      "예약"
+    ]
+  },
+  "content": {
+    "summary": null,
+    "highlights": [],
+    "cautions": [],
+    "evidence": [
+      "아루 도산공원점",
+      "서울 강남구 언주로164길 34-2 2층"
+    ],
+    "raw_excerpt": "|\n\n아루 도산공원점                                      =\n일식당 ㆍ 홈 4.88ㆍ리뷰 539                :\n\n영업 전 ㆍ17:00에 영업 시작\n\n안주의 BEIEV7ECHE 일식 맛집 al at\n\nbe\n\n따!\n@ ***           q\noc ]\n(\n30\n홈 소식 Gar oF ae _ 사진 _ 정보 <\n]\n쿠폰                                                        [\n도\nGh Nolo .주류바틀 주문시 디저트제공... Vv\n《\n르\n 2026.09.24.                                            ig\n우니 타르트 출시\n\n서울 강남구 언주로164길 34-2 2층 2018 V\n\n 압구정로데오역 5번 출구에서 534m\n주차,발렛 가능하며 압구정,압구정로데오역 사이... v        12\n\n영업 전 ㆍ17:00에 영업 시작 v\n0507-1396-3443 © 복사\n\n4\nhttps://catchtable.co.kr/aru_apgujeong\n\n인스타그램\n\n단체 이용 가능, 남/녀 화장실 구분, 무선 인터넷, 예약, .…\n\nnever 1\n7"
+  },
+  "confidence": {
+    "overall": 0.68,
+    "extraction": 0.8,
+    "geo_match": null
+  },
+  "embedding_text": "아루 도산공원점 | 맛집/일식 | 서울특별시 강남구",
+  "provenance": {
+    "opening_hours": {
+      "source": "text:heuristic",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.48
+    },
+    "stay_minutes": {
+      "source": "default:category",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.5
+    },
+    "indoor": {
+      "source": "default:category",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.5
+    },
+    "rating": {
+      "source": "text:heuristic",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.8
+    },
+    "review_count": {
+      "source": "text:heuristic",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.8
+    },
+    "nearest_station": {
+      "source": "text:heuristic",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.8
+    },
+    "parking": {
+      "source": "text:heuristic",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.8
+    },
+    "reservation_method": {
+      "source": "text:heuristic",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.8
+    },
+    "amenities": {
+      "source": "text:heuristic",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.8
+    },
+    "address": {
+      "source": "text:heuristic",
+      "collected_at": "2026-10-07T07:52:59+00:00",
+      "confidence": 0.8
+    }
+  },
+  "missing_fields": [
+    "opening_hours",
+    "location",
+    "est_cost_per_person"
+  ],
+  "visited": false,
+  "extractor": "heuristic",
+  "created_at": "2026-10-07T07:52:59+00:00",
+  "updated_at": "2026-10-07T07:52:59+00:00"
+}
