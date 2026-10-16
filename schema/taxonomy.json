@@ -13,6 +13,7 @@
         "brunch": "브런치",
         "fusion": "퓨전",
         "fast_food": "분식·패스트푸드",
+        "chicken": "치킨",
         "other": "기타"
       }
     },
@@ -452,6 +453,86 @@
       "갈비",
       "restaurant",
       "meat_bbq"
+    ],
+    [
+      "통닭",
+      "restaurant",
+      "chicken"
+    ],
+    [
+      "치킨",
+      "restaurant",
+      "chicken"
+    ],
+    [
+      "치맥",
+      "restaurant",
+      "chicken"
+    ],
+    [
+      "제육",
+      "restaurant",
+      "korean"
+    ],
+    [
+      "백반",
+      "restaurant",
+      "korean"
+    ],
+    [
+      "국밥",
+      "restaurant",
+      "korean"
+    ],
+    [
+      "주꾸미",
+      "restaurant",
+      "seafood"
+    ],
+    [
+      "쭈꾸미",
+      "restaurant",
+      "seafood"
+    ],
+    [
+      "낙지",
+      "restaurant",
+      "seafood"
+    ],
+    [
+      "이탈리아",
+      "restaurant",
+      "western"
+    ],
+    [
+      "요리주점",
+      "bar",
+      "izakaya"
+    ],
+    [
+      "보드게임",
+      "activity",
+      "game"
+    ],
+    [
+      "숲길",
+      "nature",
+      "park"
+    ],
+    [
+      "산책",
+      "nature",
+      "park"
+    ],
+    [
+      "명소",
+      "nature",
+      "scenic"
+    ],
+    [
+      "소품",
+      "shopping",
+      "shop"
     ],
     [
       "오마카세",

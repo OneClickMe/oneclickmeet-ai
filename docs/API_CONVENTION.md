@@ -203,16 +203,46 @@ async function api(method, path, body) {
 `source`는 `mine | couple | external` 중 하나다.
 
 ### ResolveResult — 장소 후보 확인
+링크·스크린샷 결과는 **링크에 나온 장소 1곳 = `groups[]` 1개**로 내려온다. 릴스 '맛집 4곳' 같은 모음 링크를 위해서다. 직접 검색 결과는 `groups`가 비어 있고 `candidates`만 있다.
 ```json
 {
   "status": "candidates",
-  "candidates": [ { "place": { /* Place + subtitle */ }, "match_score": 0.93,
-                    "already_saved": false, "from_text": "아루" } ],
-  "suggested_query": "아루",
-  "extracted": [ { "name": "아루", "branch": null, "address_hint": "서울 마포구 ...", "category": "맛집" } ],
+  "groups": [
+    { "extracted": { "order": 1, "name": "오지다", "branch": null,
+                     "address_hint": "서울 송파구 백제고분로48길 24", "category": "맛집" },
+      "status": "matched",
+      "best":   { "place": { /* Place + subtitle */ }, "match_score": 1.0, "match_type": "exact",
+                  "reasons": ["주소 일치", "이름 일치"], "already_saved": false, "from_text": "오지다" },
+      "others": [ { "place": { "name": "회포차오지다", "...": "..." }, "match_score": 0.5, "match_type": "similar",
+                    "reasons": ["이름 일부만 같아요", "주소 다름"], "already_saved": false, "from_text": "오지다" } ] },
+    { "extracted": { "order": 4, "name": "리사르커피", "...": "..." }, "status": "matched", "best": { }, "others": [] }
+  ],
+  "candidates": [ /* 호환용: 모든 묶음의 best → others 순서로 한 줄 */ ],
+  "suggested_query": "오지다",
+  "extracted": [ /* groups[].extracted 와 같음 */ ],
   "message": null
 }
 ```
+
+| 필드 | 값 | 프론트 처리 |
+|---|---|---|
+| `groups[].status` | `matched`(확실한 장소 있음) · `similar_only`(비슷한 이름만) · `not_found` · `search_failed` | `not_found`·`search_failed`는 "찾지 못했어요 · 직접 검색"(검색창에 `extracted.name`) |
+| `best` | `match_type="exact"`인 1순위 (없으면 `null`) | **기본 체크** |
+| `others` | 최대 2~3개, 모두 `match_type="similar"` | 접어서 "다른 후보 N곳". **기본 체크하지 않음**. "이 장소로"를 누르면 그 묶음의 선택을 바꿈 |
+| `reasons` | `주소 일치` · `이름 일치` · `○○상가 일치` · `같은 동네` · `링크 정보` / `이름 일부만 같아요` · `이름이 비슷해요` · `주소 다름` · `같은 이름의 다른 지점` | 앞쪽(일치)은 초록, 뒤쪽(주의)은 주황 배지 |
+
+**판정 규칙** (`save_flow.match`)
+- **exact**
+  - 캡션 주소의 **도로명+건물번호가 같고** 이름도 비슷하다.
+  - 또는 공백·기호를 뺀 **이름이 같다**. "○○점" 지점명은 붙어도 된다(닭튜브 = 닭튜브 방이점). 단, 주소가 다르면 안 된다.
+- **similar**
+  - 이름 일부만 같다(오지다 ⊂ 회포차오지다).
+  - 철자가 비슷하다(유사도 0.75 이상).
+  - 이름은 같은데 주소가 다르다(다른 지점).
+- **제외**: 이름이 무관하다.
+- 1순위(best)가 정해지면, 나머지 `이름 일치` 후보는 `같은 이름의 다른 지점`(similar)으로 내린다.
+- 주소가 없는 장소는 캡션 속 건물·상가 이름("장미상가")과 같은 링크 장소들이 모인 구(예: 송파구)를 보조 근거로 쓴다.
+- 링크 하나에서 최대 10곳까지 검색한다.
 
 ---
 
@@ -222,7 +252,7 @@ async function api(method, path, body) {
 
 | status | 화면 (Figma) | 프론트 동작 |
 |---|---|---|
-| `candidates` | 후보 확인 "이 장소가 맞나요?" | 라디오 목록. 첫 번째 후보를 기본 선택 → `POST /saved-places` |
+| `candidates` | 후보 확인 "이 장소가 맞나요?" / "장소 N곳을 찾았어요" | `groups`가 있으면 장소별 묶음 + 체크박스(best만 기본 체크) → `POST /saved-places/batch`. 없으면(직접 검색) 라디오 목록 → `POST /saved-places` |
 | `no_match` | 직접 검색 | 검색창에 `suggested_query`를 미리 채움 |
 | `recognition_failed` | 스크린샷 인식 실패 | [직접 검색] / [다른 이미지 선택] |
 | `link_unreadable` | 링크 읽기 실패 (인스타 로그인 벽 등) | [직접 검색] / [스크린샷으로 올리기] |
@@ -255,6 +285,7 @@ async function api(method, path, body) {
 | 4 | `GET /places/search?q=` | 직접 검색 | `resolve_place(uid, "search", query=q)` |
 | 5 | `GET /places/{place_id}` | 장소 상세 | `place_detail(uid, place_id)` |
 | 6 | `POST /saved-places` | 후보 확인 › 개인 보관함에 저장 / 하트 ON | `save_place(uid, place, origin, source_url, share_with_couple)` |
+| 6-1 | `POST /saved-places/batch` | 후보 확인 › 선택한 N곳 저장 | `save_places(uid, places, origin, source_url, share_with_couple)` |
 | 7 | `DELETE /saved-places/{place_id}` | 하트 OFF | `unsave_place(uid, place_id)` |
 | 8 | `GET /saved-places?scope=personal\|couple` | 보관함 (목록·지도) | `list_saved(uid, scope)` |
 | 9 | `PUT /memos` | 장소·코스 상세 › 내 메모 | `set_memo(uid, target_type, target_id, text)` |
@@ -295,6 +326,16 @@ async function api(method, path, body) {
 - 응답: `{ "saved": SavedPlace, "place": Place }`.
 - 같은 장소를 다시 저장해도 하나만 유지된다(**멱등**).
 - 커플 연결이 없으면 `share_with_couple`은 무시된다.
+
+#### ⑥-1 여러 곳 저장 — `POST /saved-places/batch`
+```json
+{ "places": [ { /* Place */ }, { /* Place */ } ], "origin": "link",
+  "source_url": "https://www.instagram.com/reel/xxx", "share_with_couple": false }
+```
+- 응답: `{ "count": 4, "items": [ { "saved": SavedPlace, "place": Place } ] }`.
+- 한 번에 최대 10곳까지 저장한다.
+- 형식이 틀린 장소가 하나라도 있으면 아무것도 저장하지 않는다.
+- 이미 저장한 장소는 그대로 유지된다(멱등).
 
 #### ⑤ 장소 상세 — `GET /places/{place_id}`
 ```json
@@ -413,6 +454,7 @@ class OneClickMeetService:
     def regions(user_id) -> list[dict]
     def resolve_place(user_id, kind, *, url=None, text=None, image_paths=None, query=None) -> dict  # ResolveResult
     def save_place(user_id, place: dict, origin="search", source_url=None, share_with_couple=False) -> dict
+    def save_places(user_id, places: list[dict], origin="link", source_url=None, share_with_couple=False) -> dict
     def unsave_place(user_id, place_id) -> dict
     def list_saved(user_id, scope="personal") -> dict
     def place_detail(user_id, place_id) -> dict
@@ -453,7 +495,8 @@ signature_of(place_ids) -> str
 
 # save_flow.py
 search_candidates(search, query, is_saved=lambda pid: False) -> ResolveResult
-candidates_from_records(records: list[PlaceRecord], search, input_kind, is_saved=..., pipeline_message=None) -> ResolveResult
+candidates_from_records(records: list[PlaceRecord], search, input_kind, is_saved=..., pipeline_message=None) -> ResolveResult  # groups[]
+match(name, branch, road_core, buildings, place, name_unsure=False) -> ("exact"|"similar", score, reasons) | None
 save_candidate(repo, owner_id, place, origin, source_url=None, share_with_couple=False) -> SavedPlace
 
 # search.py
