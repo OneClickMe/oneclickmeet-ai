@@ -1,8 +1,14 @@
 """V3 (Figma V3 기준) 장소 저장 · 도보 코스 추천 · 코스 편집 테스트. 네트워크 없이 DemoSearch 로 실행."""
 from __future__ import annotations
 
+import json
+import threading
+import urllib.error
+import urllib.request
+
 import pytest
 
+from placeflow.v3 import api as v3api
 from placeflow.v3.domain import (Anchor, Course, CourseStop, DomainError, add_item, add_stop, remove_stop,
                                  reorder_stops, replace_stop, summarize, update_item, validate_for_save)
 from placeflow.v3.recommend import RecommendRequest, recommend, replacement_candidates, signature_of
@@ -226,6 +232,60 @@ def test_service_flow(svc):
         svc.get_course("intruder", saved["course"]["course_id"])
 
 
+@pytest.fixture
+def http_server(tmp_path):
+    from http.server import ThreadingHTTPServer
+
+    from placeflow.server import Handler
+
+    v3api.use_repo(JsonRepo(tmp_path / "h.json"), "demo")
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    t = threading.Thread(target=httpd.serve_forever, daemon=True)
+    t.start()
+    yield f"http://127.0.0.1:{httpd.server_address[1]}/api/v3"
+    httpd.shutdown()
+    httpd.server_close()
+
+
+def _call(base, method, path, body=None):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(base + path, data=data, method=method,
+                                 headers={"Content-Type": "application/json"} if data else {})
+    try:
+        with urllib.request.urlopen(req) as r:
+            return r.status, json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read())
+
+
+def test_http_endpoints(http_server):
+    b = http_server
+    assert _call(b, "POST", "/dev/seed", {"region_id": "hyehwa"})[0] == 200
+    s, r = _call(b, "GET", "/regions")
+    assert next(x for x in r["data"]["regions"] if x["region_id"] == "hyehwa")["saved_count"] == 4
+    s, r = _call(b, "GET", "/places/search?q=" + urllib.request.quote("혜화 카페"))
+    assert r["ok"] and r["data"]["status"] == "candidates" and r["data"]["candidates"][0]["place"]["subtitle"]
+    s, r = _call(b, "GET", "/saved-places")
+    pid = r["data"]["items"][0]["place"]["place_id"]
+    s, r = _call(b, "GET", "/places/" + pid)
+    assert r["data"]["hearted"] and "hours_notice" in r["data"]["place"]
+    anchor = {"type": "place", "place_id": pid}
+    rec = _call(b, "POST", "/recommendations", {"anchor": anchor})[1]["data"]
+    assert rec["status"] == "ok"
+    d = _call(b, "POST", "/courses/draft", {"recommended": rec["courses"][0], "anchor": anchor})[1]["data"]
+    s, r = _call(b, "POST", "/courses", {"course": d["course"]})
+    cid, course = r["data"]["course"]["course_id"], r["data"]["course"]
+    assert _call(b, "PUT", "/courses/" + cid, {"course": course, "expected_version": 1})[0] == 200
+    s, r = _call(b, "PUT", "/courses/" + cid, {"course": course, "expected_version": 1})
+    assert s == 409 and r["error"]["code"] == "version_conflict"
+    few = dict(course, stops=course["stops"][:2], items=[])
+    s, r = _call(b, "PUT", "/courses/" + cid, {"course": few, "expected_version": 2})
+    assert s == 422 and r["error"]["code"] == "too_few_stops"
+    assert _call(b, "GET", "/nope")[0] == 404
+    assert _call(b, "POST", "/recommendations", {})[1]["error"]["code"] == "invalid_input"
+    assert _call(b, "DELETE", "/courses/" + cid)[1]["data"]["deleted"]
+
+
 # ------------------------------------------------------------------ OCR 보강 (상호명이 깨진 플레이스 캡쳐)
 def test_ocr_merge_fixes_garbled_name_and_address():
     from placeflow.ocr import merge_variants, ocr_quality
@@ -264,7 +324,7 @@ def test_garbled_place_capture_resolves_by_address():
 def test_share_text_used_when_link_blocked_by_robots():
     from placeflow.fetchers.http import ROBOTS_BLOCKED, HttpResponse
     from placeflow.pipeline import Pipeline
-    from placeflow.v3.save_flow import split_share_text
+    from placeflow.v3.api import split_share_text
 
     url, rest = split_share_text("[네이버 지도]\n삼형제쭈꾸미 대학로점\n서울 종로구 동숭길 68\nhttps://naver.me/5abcDEF")
     assert url == "https://naver.me/5abcDEF" and "삼형제쭈꾸미 대학로점" in rest
@@ -282,3 +342,92 @@ def test_share_text_used_when_link_blocked_by_robots():
     out2 = pipe.run(url, rest)
     assert out2.records and out2.records[0].place.name.startswith("삼형제쭈꾸미")
     assert out2.records[0].place.address.road == "서울 종로구 동숭길 68"
+
+
+# ------------------------------------------------------------------ 링크 하나에 장소 여러 곳 (인스타 '맛집 4곳' 릴스)
+def _jamsil_db():
+    from placeflow.v3.domain import Place
+
+    def P(i, name, road, cat="restaurant"):
+        return Place(place_id=i, name=name, road_address=road, category=cat, lat=37.51, lng=127.11,
+                     provider="naver_local")
+    return [P("a", "오지다", "서울특별시 송파구 백제고분로48길 24"),
+            P("b", "회포차오지다", "서울특별시 송파구 가락로 241 1층"),
+            P("c", "닭튜브 방이점", "서울특별시 송파구 백제고분로48길 7 1층"),
+            P("d", "일일식탁", "서울특별시 송파구 올림픽로35길 124 장미종합A상가 A-2동 지하1층"),
+            P("e", "일일식탁 강남점", "서울특별시 강남구 테헤란로 1"),
+            P("f", "리사르커피", "서울특별시 송파구 올림픽로35길 112 B동", "cafe")]
+
+
+class _FakeNaver:
+    name = "fake"
+
+    def __init__(self, db):
+        self.db, self.calls = db, []
+
+    def search(self, q, display=5):
+        self.calls.append(q)
+        toks = [x for x in q.split() if not x.endswith(("구", "동"))]
+        return [p for p in self.db if any(x.replace(" ", "") in (p.name + p.road_address).replace(" ", "")
+                                           for x in toks)][:display]
+
+
+def test_multi_place_caption_groups():
+    from pathlib import Path
+
+    from placeflow.pipeline import Pipeline
+
+    caption = (Path(__file__).parent / "fixtures" / "ig_jamsil_4places.txt").read_text(encoding="utf-8")
+    recs = Pipeline().run(caption).records
+    assert [r.place.name for r in recs] == ["오지다", "닭튜브", "일일식탁", "리사르커피"]
+    cats = {r.place.name: (r.classification.primary_category, r.classification.sub_category) for r in recs}
+    assert cats["닭튜브"] == ("restaurant", "chicken") and cats["일일식탁"] == ("restaurant", "korean")
+
+    res = candidates_from_records(recs, _FakeNaver(_jamsil_db()), "link")
+    assert res.status == "candidates"
+    assert [g.extracted.name for g in res.groups] == ["오지다", "닭튜브", "일일식탁", "리사르커피"]  # 4번째도 검색됨
+    assert [g.extracted.order for g in res.groups] == [1, 2, 3, 4]
+    best = {g.extracted.name: g.best.place.place_id for g in res.groups}
+    assert best == {"오지다": "a", "닭튜브": "c", "일일식탁": "d", "리사르커피": "f"}
+    g0 = res.groups[0]
+    assert "주소 일치" in g0.best.reasons
+    hoe = next(c for c in g0.others if c.place.place_id == "b")  # 회포차오지다: 기본 선택 안 함
+    assert hoe.match_type == "similar" and "이름 일부만 같아요" in hoe.reasons and "주소 다름" in hoe.reasons
+    gangnam = next(c for c in res.groups[2].others if c.place.place_id == "e")
+    assert gangnam.match_type == "similar"
+    assert all(c.match_type == "similar" for g in res.groups for c in g.others)
+
+
+def test_match_rules():
+    from placeflow.v3.save_flow import match
+
+    db = {p.place_id: p for p in _jamsil_db()}
+    assert match("닭튜브", None, None, [], db["c"])[0] == "exact"            # '○○점' 지점명 허용
+    assert match("오지다", None, None, [], db["b"])[0] == "similar"          # 이름 일부만
+    assert match("오지다", None, "백제고분로48길24", [], db["b"])[2][-1] == "주소 다름"
+    assert match("오지다", None, None, [], db["c"]) is None                  # 무관한 가게
+    assert match("일일식탁", None, None, [("장미", "상가")], db["d"])[2] == ["이름 일치", "장미상가 일치"]
+
+
+def test_similar_only_group_has_no_best():
+    from placeflow.pipeline import Pipeline
+
+    recs = Pipeline().run("📍오지다 서울 송파구 가락로 999").records
+    res = candidates_from_records(recs, _FakeNaver(_jamsil_db()), "link")
+    g = res.groups[0]
+    assert g.best is None and g.status == "similar_only" and g.others
+
+
+def test_batch_save(svc, demo):
+    ps = [p.model_dump(mode="json") for p in demo.places[:3]]
+    out = svc.save_places("me", ps, origin="link", source_url="https://instagram.com/reel/x")
+    assert out["count"] == 3 and svc.list_saved("me")["count"] == 3
+    with pytest.raises(DomainError):
+        svc.save_places("me", [])
+
+
+def test_embedded_cuisine_word_ignored():
+    from placeflow import taxonomy
+
+    assert taxonomy.classify_text("일일식탁") is None
+    assert taxonomy.classify_text("일식당 하루") == ("restaurant", "japanese")

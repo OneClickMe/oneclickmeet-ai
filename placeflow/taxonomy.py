@@ -16,7 +16,7 @@ PRIMARY: dict[str, dict] = {
             "korean": "한식", "meat_bbq": "고기·구이", "seafood": "해산물",
             "japanese": "일식", "chinese": "중식", "western": "양식",
             "asian": "아시안", "brunch": "브런치", "fusion": "퓨전",
-            "fast_food": "분식·패스트푸드", "other": "기타",
+            "fast_food": "분식·패스트푸드", "chicken": "치킨", "other": "기타",
         },
     },
     "cafe": {
@@ -118,6 +118,8 @@ KEYWORD_RULES: list[tuple[str, str, str]] = [
     ("리조트", "stay", "hotel"), ("스테이", "stay", "other"), ("숙소", "stay", "other"), ("게스트하우스", "stay", "guesthouse"),
     ("소품샵", "shopping", "shop"), ("편집숍", "shopping", "shop"), ("시장", "shopping", "market"),
     ("고기", "restaurant", "meat_bbq"), ("삼겹살", "restaurant", "meat_bbq"), ("갈비", "restaurant", "meat_bbq"),
+    ("통닭", "restaurant", "chicken"), ("치킨", "restaurant", "chicken"), ("치맥", "restaurant", "chicken"),
+    ("제육", "restaurant", "korean"), ("백반", "restaurant", "korean"), ("국밥", "restaurant", "korean"),
     ("주꾸미", "restaurant", "seafood"), ("쭈꾸미", "restaurant", "seafood"), ("낙지", "restaurant", "seafood"),
     ("이탈리아", "restaurant", "western"), ("요리주점", "bar", "izakaya"), ("보드게임", "activity", "game"),
     ("숲길", "nature", "park"), ("산책", "nature", "park"), ("명소", "nature", "scenic"), ("소품", "shopping", "shop"),
@@ -158,6 +160,25 @@ _GENERIC = {"술집", "주점", "바(BAR)", "카페", "맛집", "음식점"}
 SHORT_TEXT = 30  # 이 길이 이하(상호명·카테고리 문자열)는 '마지막' 키워드가 핵심어
 
 
+# 두 글자 분류어가 다른 낱말 한가운데 끼어 있으면 무시 (예: '일일식탁' 안의 '일식')
+_EMBED_SENSITIVE = {"일식", "중식", "한식", "양식"}
+
+
+def _free_pos(text: str, kw: str) -> int:
+    """kw 가 앞뒤 모두 한글에 붙어 있지 않은 첫 위치 (없으면 -1). '일식당'·'정통일식'은 허용, '일일식탁'은 제외."""
+    start = 0
+    while True:
+        pos = text.find(kw, start)
+        if pos < 0:
+            return -1
+        before = text[pos - 1] if pos > 0 else ""
+        after = text[pos + len(kw)] if pos + len(kw) < len(text) else ""
+        hangul = lambda ch: "가" <= ch <= "힣"  # noqa: E731
+        if not (hangul(before) and hangul(after)) or after in ("당", "집"):
+            return pos
+        start = pos + 1
+
+
 def _best_rule(text: str, rules) -> tuple[str, str, str] | None:
     """한 텍스트 안에서 규칙 하나를 고릅니다.
 
@@ -167,6 +188,8 @@ def _best_rule(text: str, rules) -> tuple[str, str, str] | None:
     hits = []
     for rule in rules:
         pos = text.find(rule[0])
+        if pos >= 0 and rule[0] in _EMBED_SENSITIVE:
+            pos = _free_pos(text, rule[0])
         if pos >= 0:
             hits.append((rule[0] in _GENERIC, pos + len(rule[0]), pos, rule))
     if not hits:

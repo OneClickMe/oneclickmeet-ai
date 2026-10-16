@@ -81,9 +81,19 @@ class OneClickMeetService:
 
     @staticmethod
     def _with_cards(res) -> dict:
+        """후보 Place 에 화면 표시용 subtitle·hours_notice 를 붙임 (groups 와 candidates 모두)."""
         d = res.model_dump(mode="json")
-        for c, raw in zip(d["candidates"], res.candidates):
-            c["place"] = _place_card(raw.place)
+        cards = {}
+        for c in res.candidates:
+            cards[c.place.place_id] = _place_card(c.place)
+        for g in res.groups:
+            for c in ([g.best] if g.best else []) + list(g.others):
+                cards.setdefault(c.place.place_id, _place_card(c.place))
+        for c in d["candidates"]:
+            c["place"] = cards[c["place"]["place_id"]]
+        for g in d.get("groups", []):
+            for c in ([g["best"]] if g.get("best") else []) + g["others"]:
+                c["place"] = cards[c["place"]["place_id"]]
         return d
 
     def save_place(self, user_id: str, place: dict, origin: str = "search", source_url: Optional[str] = None,
@@ -94,6 +104,18 @@ class OneClickMeetService:
             share_with_couple = False
         sp = save_candidate(self.repo, user_id, p, origin, source_url, share_with_couple)
         return {"saved": sp.model_dump(mode="json"), "place": _place_card(self.repo.get_place(p.place_id))}
+
+    def save_places(self, user_id: str, places: list[dict], origin: str = "link", source_url: Optional[str] = None,
+                    share_with_couple: bool = False) -> dict:
+        """후보 확인(장소 여러 곳) → '선택한 N곳 저장'. 하나라도 형식이 틀리면 아무것도 저장하지 않음."""
+        if not places:
+            raise DomainError("invalid_input", "저장할 장소를 선택해 주세요.")
+        if len(places) > 10:
+            raise DomainError("invalid_input", "한 번에 10곳까지 저장할 수 있어요.")
+        parsed = [Place.model_validate(p) for p in places]  # 검증 먼저
+        items = [self.save_place(user_id, p.model_dump(mode="json"), origin, source_url, share_with_couple)
+                 for p in parsed]
+        return {"count": len(items), "items": items}
 
     def unsave_place(self, user_id: str, place_id: str) -> dict:
         """하트 OFF (내 보관함에서 저장 해제). 코스 안의 장소에는 영향 없음."""
