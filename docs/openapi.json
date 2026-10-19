@@ -1,0 +1,2148 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "OneClickMeet AI API",
+  "description": "장소 인식(링크·캡션·스크린샷)과 도보 코스 추천. 상태 없음 — 사용자 데이터는 요청에 담아 보냅니다. 응답은 `{ok, data}` / `{ok:false, error:{code, message}}`.",
+  "version": "1.1"
+ },
+ "paths": {
+  "/ai/v1/places/resolve": {
+   "post": {
+    "tags": [
+     "장소 인식"
+    ],
+    "summary": "링크·캡션 → 장소 후보",
+    "description": "링크(또는 앱 '공유 → 복사' 문구 전체)·캡션에서 장소를 찾아 **장소별 묶음(groups)** 으로 후보를 돌려줍니다.\n저장하지 않습니다. 사용자가 고른 Place 는 백엔드가 저장합니다.",
+    "operationId": "resolve_link_ai_v1_places_resolve_post",
+    "parameters": [
+     {
+      "name": "X-AI-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "AI_SERVICE_KEY 를 설정한 경우 필수",
+       "title": "X-Ai-Key"
+      },
+      "description": "AI_SERVICE_KEY 를 설정한 경우 필수"
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ResolveRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Ok_ResolveResult_"
+        }
+       }
+      }
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Bad Request"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "502": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Bad Gateway"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/ai/v1/places/resolve/screenshot": {
+   "post": {
+    "tags": [
+     "장소 인식"
+    ],
+    "summary": "스크린샷 → 장소 후보",
+    "description": "multipart/form-data. 여러 장이면 같은 장소의 여러 화면(홈·메뉴·정보 탭)으로 보고 합쳐서 읽습니다.",
+    "operationId": "resolve_screenshot_ai_v1_places_resolve_screenshot_post",
+    "parameters": [
+     {
+      "name": "X-AI-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "AI_SERVICE_KEY 를 설정한 경우 필수",
+       "title": "X-Ai-Key"
+      },
+      "description": "AI_SERVICE_KEY 를 설정한 경우 필수"
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_resolve_screenshot_ai_v1_places_resolve_screenshot_post"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Ok_ResolveResult_"
+        }
+       }
+      }
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Bad Request"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "502": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Bad Gateway"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/ai/v1/places/search": {
+   "get": {
+    "tags": [
+     "장소 인식"
+    ],
+    "summary": "직접 검색",
+    "description": "네이버 지역검색 결과를 후보로 돌려줍니다 (groups 는 비어 있고 candidates 만 있음).",
+    "operationId": "search_places_ai_v1_places_search_get",
+    "parameters": [
+     {
+      "name": "q",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 100,
+       "description": "장소 이름이나 주소",
+       "title": "Q"
+      },
+      "description": "장소 이름이나 주소"
+     },
+     {
+      "name": "saved_place_ids",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "title": "Saved Place Ids"
+      }
+     },
+     {
+      "name": "X-AI-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "AI_SERVICE_KEY 를 설정한 경우 필수",
+       "title": "X-Ai-Key"
+      },
+      "description": "AI_SERVICE_KEY 를 설정한 경우 필수"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Ok_ResolveResult_"
+        }
+       }
+      }
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Bad Request"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "502": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Bad Gateway"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/ai/v1/places/nearby": {
+   "post": {
+    "tags": [
+     "장소 인식"
+    ],
+    "summary": "주변 놀거리",
+    "description": "장소 상세 '주변 놀거리': 걸어서 10분 이내의 놀거리·카페 (저장한 장소 먼저). 외부 검색이 실패하면 저장 장소만.",
+    "operationId": "nearby_ai_v1_places_nearby_post",
+    "parameters": [
+     {
+      "name": "X-AI-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "AI_SERVICE_KEY 를 설정한 경우 필수",
+       "title": "X-Ai-Key"
+      },
+      "description": "AI_SERVICE_KEY 를 설정한 경우 필수"
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/NearbyRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Ok_CandidateList_"
+        }
+       }
+      }
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Bad Request"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "502": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Bad Gateway"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/ai/v1/recommendations": {
+   "post": {
+    "tags": [
+     "코스 추천"
+    ],
+    "summary": "도보 코스 추천",
+    "description": "기준(저장한 장소 또는 지원 지역) 반경 1km 안에서 도보 10분 이내로 이어지는 3~5곳 코스를 최대 3개 돌려줍니다.\n\n- 추천 실패(지원하지 않는 지역·후보 부족·외부 API 실패·결과 없음·기준 장소 없음)는 200 + `data.status`\n- '다시 추천받기'는 지금까지 받은 `courses[].signature` 를 모두 `exclude_signatures` 로 보냄",
+    "operationId": "recommendations_ai_v1_recommendations_post",
+    "parameters": [
+     {
+      "name": "X-AI-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "AI_SERVICE_KEY 를 설정한 경우 필수",
+       "title": "X-Ai-Key"
+      },
+      "description": "AI_SERVICE_KEY 를 설정한 경우 필수"
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RecommendRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Ok_RecommendResult_"
+        }
+       }
+      }
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Bad Request"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "502": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Bad Gateway"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/ai/v1/recommendations/replacements": {
+   "post": {
+    "tags": [
+     "코스 추천"
+    ],
+    "summary": "교체 후보",
+    "description": "코스 편집 '교체': 앞·뒤 장소 양쪽에서 도보 10분 이내이고 코스에 없는 장소 (저장한 장소 먼저).",
+    "operationId": "replacements_ai_v1_recommendations_replacements_post",
+    "parameters": [
+     {
+      "name": "X-AI-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "AI_SERVICE_KEY 를 설정한 경우 필수",
+       "title": "X-Ai-Key"
+      },
+      "description": "AI_SERVICE_KEY 를 설정한 경우 필수"
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ReplacementRequest"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Ok_CandidateList_"
+        }
+       }
+      }
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Bad Request"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "502": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Bad Gateway"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/ai/v1/regions": {
+   "get": {
+    "tags": [
+     "코스 추천"
+    ],
+    "summary": "지원 지역",
+    "description": "추천 기준으로 고를 수 있는 지원 지역 6곳 (중심 좌표·반경은 근사값).",
+    "operationId": "regions_ai_v1_regions_get",
+    "parameters": [
+     {
+      "name": "X-AI-Key",
+      "in": "header",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "description": "AI_SERVICE_KEY 를 설정한 경우 필수",
+       "title": "X-Ai-Key"
+      },
+      "description": "AI_SERVICE_KEY 를 설정한 경우 필수"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Ok_RegionList_"
+        }
+       }
+      }
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Bad Request"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "502": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Bad Gateway"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Err"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/health": {
+   "get": {
+    "tags": [
+     "상태"
+    ],
+    "summary": "Health",
+    "operationId": "health_health_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Health"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "Anchor": {
+    "properties": {
+     "type": {
+      "type": "string",
+      "enum": [
+       "place",
+       "region"
+      ],
+      "title": "Type"
+     },
+     "place_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Place Id"
+     },
+     "region_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Region Id"
+     }
+    },
+    "type": "object",
+    "required": [
+     "type"
+    ],
+    "title": "Anchor"
+   },
+   "Body_resolve_screenshot_ai_v1_places_resolve_screenshot_post": {
+    "properties": {
+     "files": {
+      "items": {
+       "type": "string",
+       "format": "binary"
+      },
+      "type": "array",
+      "title": "Files",
+      "description": "이미지 1~5장 (png·jpg·jpeg·webp·gif)"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note",
+      "description": "함께 붙여넣은 캡션·메모"
+     },
+     "saved_place_ids": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Saved Place Ids",
+      "description": "이미 저장한 place_id (여러 번 보내기)"
+     }
+    },
+    "type": "object",
+    "required": [
+     "files"
+    ],
+    "title": "Body_resolve_screenshot_ai_v1_places_resolve_screenshot_post"
+   },
+   "Cand": {
+    "properties": {
+     "place": {
+      "$ref": "#/components/schemas/Place-Output"
+     },
+     "source": {
+      "type": "string",
+      "enum": [
+       "mine",
+       "couple",
+       "external"
+      ],
+      "title": "Source"
+     }
+    },
+    "type": "object",
+    "required": [
+     "place",
+     "source"
+    ],
+    "title": "Cand"
+   },
+   "Candidate": {
+    "properties": {
+     "place": {
+      "$ref": "#/components/schemas/Place-Output"
+     },
+     "match_score": {
+      "type": "number",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Match Score",
+      "description": "추출한 이름·주소와 얼마나 맞는지"
+     },
+     "match_type": {
+      "type": "string",
+      "enum": [
+       "exact",
+       "similar"
+      ],
+      "title": "Match Type",
+      "description": "exact=확실한 일치(기본 선택) / similar=비슷한 이름(기본 선택 안 함)",
+      "default": "exact"
+     },
+     "reasons": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Reasons",
+      "description": "화면 배지: 주소 일치 · 이름 일치 · 이름 일부만 같아요 · 주소 다름 …"
+     },
+     "already_saved": {
+      "type": "boolean",
+      "title": "Already Saved",
+      "default": false
+     },
+     "from_text": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "From Text",
+      "description": "이 후보를 찾게 한 추출 이름"
+     }
+    },
+    "type": "object",
+    "required": [
+     "place",
+     "match_score"
+    ],
+    "title": "Candidate"
+   },
+   "CandidateList": {
+    "properties": {
+     "candidates": {
+      "items": {
+       "$ref": "#/components/schemas/Cand"
+      },
+      "type": "array",
+      "title": "Candidates"
+     }
+    },
+    "type": "object",
+    "required": [
+     "candidates"
+    ],
+    "title": "CandidateList"
+   },
+   "Err": {
+    "properties": {
+     "ok": {
+      "type": "boolean",
+      "const": false,
+      "title": "Ok",
+      "default": false
+     },
+     "error": {
+      "$ref": "#/components/schemas/ErrorBody"
+     }
+    },
+    "type": "object",
+    "required": [
+     "error"
+    ],
+    "title": "Err"
+   },
+   "ErrorBody": {
+    "properties": {
+     "code": {
+      "type": "string",
+      "title": "Code",
+      "examples": [
+       "invalid_input"
+      ]
+     },
+     "message": {
+      "type": "string",
+      "title": "Message",
+      "description": "사용자에게 그대로 보여줘도 되는 한국어 문장"
+     }
+    },
+    "type": "object",
+    "required": [
+     "code",
+     "message"
+    ],
+    "title": "ErrorBody"
+   },
+   "Extracted": {
+    "properties": {
+     "order": {
+      "type": "integer",
+      "title": "Order",
+      "description": "링크(캡션)에 나온 순서, 1부터",
+      "default": 1
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "branch": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Branch"
+     },
+     "address_hint": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Address Hint"
+     },
+     "category": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Category"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name"
+    ],
+    "title": "Extracted"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "Health": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "const": "ok",
+      "title": "Status",
+      "default": "ok"
+     },
+     "workflow_version": {
+      "type": "string",
+      "title": "Workflow Version"
+     },
+     "search_provider": {
+      "type": "string",
+      "title": "Search Provider"
+     },
+     "extractor": {
+      "type": "string",
+      "title": "Extractor"
+     },
+     "ocr": {
+      "type": "string",
+      "title": "Ocr"
+     },
+     "ocr_ready": {
+      "type": "boolean",
+      "title": "Ocr Ready"
+     },
+     "auth_required": {
+      "type": "boolean",
+      "title": "Auth Required"
+     }
+    },
+    "type": "object",
+    "required": [
+     "workflow_version",
+     "search_provider",
+     "extractor",
+     "ocr",
+     "ocr_ready",
+     "auth_required"
+    ],
+    "title": "Health"
+   },
+   "NearbyRequest": {
+    "properties": {
+     "place": {
+      "$ref": "#/components/schemas/Place-Input"
+     },
+     "saved_places": {
+      "items": {
+       "$ref": "#/components/schemas/SavedPlaceIn"
+      },
+      "type": "array",
+      "maxItems": 500,
+      "title": "Saved Places"
+     },
+     "limit": {
+      "type": "integer",
+      "maximum": 10.0,
+      "minimum": 1.0,
+      "title": "Limit",
+      "default": 3
+     }
+    },
+    "type": "object",
+    "required": [
+     "place"
+    ],
+    "title": "NearbyRequest"
+   },
+   "Ok_CandidateList_": {
+    "properties": {
+     "ok": {
+      "type": "boolean",
+      "const": true,
+      "title": "Ok",
+      "default": true
+     },
+     "data": {
+      "$ref": "#/components/schemas/CandidateList"
+     }
+    },
+    "type": "object",
+    "required": [
+     "data"
+    ],
+    "title": "Ok[CandidateList]"
+   },
+   "Ok_RecommendResult_": {
+    "properties": {
+     "ok": {
+      "type": "boolean",
+      "const": true,
+      "title": "Ok",
+      "default": true
+     },
+     "data": {
+      "$ref": "#/components/schemas/RecommendResult"
+     }
+    },
+    "type": "object",
+    "required": [
+     "data"
+    ],
+    "title": "Ok[RecommendResult]"
+   },
+   "Ok_RegionList_": {
+    "properties": {
+     "ok": {
+      "type": "boolean",
+      "const": true,
+      "title": "Ok",
+      "default": true
+     },
+     "data": {
+      "$ref": "#/components/schemas/RegionList"
+     }
+    },
+    "type": "object",
+    "required": [
+     "data"
+    ],
+    "title": "Ok[RegionList]"
+   },
+   "Ok_ResolveResult_": {
+    "properties": {
+     "ok": {
+      "type": "boolean",
+      "const": true,
+      "title": "Ok",
+      "default": true
+     },
+     "data": {
+      "$ref": "#/components/schemas/ResolveResult"
+     }
+    },
+    "type": "object",
+    "required": [
+     "data"
+    ],
+    "title": "Ok[ResolveResult]"
+   },
+   "Place-Input": {
+    "properties": {
+     "place_id": {
+      "type": "string",
+      "title": "Place Id",
+      "description": "'nv_' + 해시 (네이버 지역검색 결과는 고유 ID 가 없어 이름+도로명주소로 생성)"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "branch": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Branch"
+     },
+     "category": {
+      "type": "string",
+      "title": "Category",
+      "description": "대분류: restaurant|cafe|bar|culture|activity|nature|shopping|stay|other",
+      "default": "other"
+     },
+     "sub_category": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sub Category"
+     },
+     "category_label": {
+      "type": "string",
+      "title": "Category Label",
+      "description": "화면 표시용 (맛집, 카페·디저트 …)",
+      "default": "기타"
+     },
+     "area_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Area Label",
+      "description": "동네 (연남동 등)"
+     },
+     "road_address": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Road Address"
+     },
+     "jibun_address": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Jibun Address"
+     },
+     "lat": {
+      "type": "number",
+      "title": "Lat"
+     },
+     "lng": {
+      "type": "number",
+      "title": "Lng"
+     },
+     "phone": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Phone"
+     },
+     "map_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Map Url"
+     },
+     "provider": {
+      "type": "string",
+      "title": "Provider",
+      "description": "naver_local | demo | link",
+      "default": "naver_local"
+     },
+     "opening_hours": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/WeeklyHours"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "type": "object",
+    "required": [
+     "place_id",
+     "name",
+     "lat",
+     "lng"
+    ],
+    "title": "Place"
+   },
+   "Place-Output": {
+    "properties": {
+     "place_id": {
+      "type": "string",
+      "title": "Place Id",
+      "description": "'nv_' + 해시 (네이버 지역검색 결과는 고유 ID 가 없어 이름+도로명주소로 생성)"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "branch": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Branch"
+     },
+     "category": {
+      "type": "string",
+      "title": "Category",
+      "description": "대분류: restaurant|cafe|bar|culture|activity|nature|shopping|stay|other",
+      "default": "other"
+     },
+     "sub_category": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Sub Category"
+     },
+     "category_label": {
+      "type": "string",
+      "title": "Category Label",
+      "description": "화면 표시용 (맛집, 카페·디저트 …)",
+      "default": "기타"
+     },
+     "area_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Area Label",
+      "description": "동네 (연남동 등)"
+     },
+     "road_address": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Road Address"
+     },
+     "jibun_address": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Jibun Address"
+     },
+     "lat": {
+      "type": "number",
+      "title": "Lat"
+     },
+     "lng": {
+      "type": "number",
+      "title": "Lng"
+     },
+     "phone": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Phone"
+     },
+     "map_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Map Url"
+     },
+     "provider": {
+      "type": "string",
+      "title": "Provider",
+      "description": "naver_local | demo | link",
+      "default": "naver_local"
+     },
+     "opening_hours": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/WeeklyHours"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "hours_notice": {
+      "type": "string",
+      "title": "Hours Notice",
+      "description": "장소 상세 '운영시간' 줄. 확인된 정보가 없으면 V3 안내 문구.",
+      "readOnly": true
+     },
+     "subtitle": {
+      "type": "string",
+      "title": "Subtitle",
+      "description": "카드 부제 '맛집 · 연남동'.",
+      "readOnly": true
+     }
+    },
+    "type": "object",
+    "required": [
+     "place_id",
+     "name",
+     "lat",
+     "lng",
+     "hours_notice",
+     "subtitle"
+    ],
+    "title": "Place"
+   },
+   "PlaceGroup": {
+    "properties": {
+     "extracted": {
+      "$ref": "#/components/schemas/Extracted"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "matched",
+       "similar_only",
+       "not_found",
+       "search_failed"
+      ],
+      "title": "Status"
+     },
+     "best": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Candidate"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "match_type=exact 인 1순위. 없으면 null"
+     },
+     "others": {
+      "items": {
+       "$ref": "#/components/schemas/Candidate"
+      },
+      "type": "array",
+      "title": "Others"
+     }
+    },
+    "type": "object",
+    "required": [
+     "extracted",
+     "status"
+    ],
+    "title": "PlaceGroup",
+    "description": "링크에 나온 장소 1곳 = 묶음 1개. 화면은 묶음마다 best(체크) + others(접힘)를 보여줌."
+   },
+   "RecommendRequest": {
+    "properties": {
+     "anchor": {
+      "$ref": "#/components/schemas/Anchor"
+     },
+     "anchor_place": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Place-Input"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "anchor.type=place 일 때 기준 장소. 없으면 saved_places 에서 찾음"
+     },
+     "saved_places": {
+      "items": {
+       "$ref": "#/components/schemas/SavedPlaceIn"
+      },
+      "type": "array",
+      "maxItems": 500,
+      "title": "Saved Places"
+     },
+     "exclude_signatures": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 200,
+      "title": "Exclude Signatures",
+      "description": "'다시 추천받기': 앞에서 받은 courses[].signature 전부"
+     }
+    },
+    "type": "object",
+    "required": [
+     "anchor"
+    ],
+    "title": "RecommendRequest"
+   },
+   "RecommendResult": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "ok",
+       "unsupported_region",
+       "external_api_failed",
+       "not_enough_candidates",
+       "no_result",
+       "anchor_not_found"
+      ],
+      "title": "Status"
+     },
+     "courses": {
+      "items": {
+       "$ref": "#/components/schemas/RecommendedCourse"
+      },
+      "type": "array",
+      "title": "Courses"
+     },
+     "steps": {
+      "items": {
+       "$ref": "#/components/schemas/Step"
+      },
+      "type": "array",
+      "title": "Steps"
+     },
+     "region": {
+      "anyOf": [
+       {
+        "additionalProperties": true,
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Region"
+     },
+     "candidates_count": {
+      "type": "integer",
+      "title": "Candidates Count",
+      "default": 0
+     },
+     "message": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Message"
+     }
+    },
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "RecommendResult"
+   },
+   "RecommendedCourse": {
+    "properties": {
+     "signature": {
+      "type": "string",
+      "title": "Signature",
+      "description": "코스 식별용 (장소 ID 정렬 결합). '다시 추천받기' 때 exclude 로 보냄"
+     },
+     "stops": {
+      "items": {
+       "$ref": "#/components/schemas/RecommendedStop"
+      },
+      "type": "array",
+      "title": "Stops"
+     },
+     "total_walk_min": {
+      "type": "integer",
+      "title": "Total Walk Min"
+     },
+     "saved_count": {
+      "type": "integer",
+      "title": "Saved Count"
+     },
+     "external_count": {
+      "type": "integer",
+      "title": "External Count"
+     },
+     "score": {
+      "type": "number",
+      "title": "Score"
+     },
+     "reasons": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Reasons"
+     }
+    },
+    "type": "object",
+    "required": [
+     "signature",
+     "stops",
+     "total_walk_min",
+     "saved_count",
+     "external_count",
+     "score"
+    ],
+    "title": "RecommendedCourse"
+   },
+   "RecommendedStop": {
+    "properties": {
+     "order": {
+      "type": "integer",
+      "title": "Order"
+     },
+     "place": {
+      "$ref": "#/components/schemas/Place-Output"
+     },
+     "source": {
+      "type": "string",
+      "enum": [
+       "mine",
+       "couple",
+       "external"
+      ],
+      "title": "Source"
+     },
+     "is_anchor": {
+      "type": "boolean",
+      "title": "Is Anchor",
+      "default": false
+     },
+     "external": {
+      "type": "boolean",
+      "title": "External",
+      "default": false
+     },
+     "walk_from_prev_min": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Walk From Prev Min"
+     }
+    },
+    "type": "object",
+    "required": [
+     "order",
+     "place",
+     "source"
+    ],
+    "title": "RecommendedStop"
+   },
+   "RegionList": {
+    "properties": {
+     "regions": {
+      "items": {
+       "$ref": "#/components/schemas/RegionOut"
+      },
+      "type": "array",
+      "title": "Regions"
+     }
+    },
+    "type": "object",
+    "required": [
+     "regions"
+    ],
+    "title": "RegionList"
+   },
+   "RegionOut": {
+    "properties": {
+     "region_id": {
+      "type": "string",
+      "title": "Region Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "lat": {
+      "type": "number",
+      "title": "Lat"
+     },
+     "lng": {
+      "type": "number",
+      "title": "Lng"
+     },
+     "radius_m": {
+      "type": "integer",
+      "title": "Radius M"
+     }
+    },
+    "type": "object",
+    "required": [
+     "region_id",
+     "name",
+     "lat",
+     "lng",
+     "radius_m"
+    ],
+    "title": "RegionOut"
+   },
+   "ReplacementRequest": {
+    "properties": {
+     "course_places": {
+      "items": {
+       "$ref": "#/components/schemas/Place-Input"
+      },
+      "type": "array",
+      "maxItems": 5,
+      "minItems": 1,
+      "title": "Course Places",
+      "description": "지금 코스의 장소들 (순서대로)"
+     },
+     "index": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Index",
+      "description": "교체할 장소의 위치 (0부터)"
+     },
+     "saved_places": {
+      "items": {
+       "$ref": "#/components/schemas/SavedPlaceIn"
+      },
+      "type": "array",
+      "maxItems": 500,
+      "title": "Saved Places"
+     },
+     "limit": {
+      "type": "integer",
+      "maximum": 20.0,
+      "minimum": 1.0,
+      "title": "Limit",
+      "default": 8
+     }
+    },
+    "type": "object",
+    "required": [
+     "course_places",
+     "index"
+    ],
+    "title": "ReplacementRequest"
+   },
+   "ResolveRequest": {
+    "properties": {
+     "type": {
+      "type": "string",
+      "enum": [
+       "link",
+       "text"
+      ],
+      "title": "Type",
+      "description": "link: url 필수 / text: note 필수"
+     },
+     "url": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 4000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Url",
+      "description": "링크 또는 앱 '공유 → 복사' 문구 전체 (첫 http 링크를 씀)"
+     },
+     "note": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 20000
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Note",
+      "description": "함께 붙여넣은 캡션·메모"
+     },
+     "saved_place_ids": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 2000,
+      "title": "Saved Place Ids",
+      "description": "이미 저장한 place_id → 후보에 already_saved=true"
+     }
+    },
+    "type": "object",
+    "required": [
+     "type"
+    ],
+    "title": "ResolveRequest",
+    "description": "링크·캡션 인식. 스크린샷은 multipart 엔드포인트(/places/resolve/screenshot)를 씁니다."
+   },
+   "ResolveResult": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "candidates",
+       "no_match",
+       "recognition_failed",
+       "link_unreadable",
+       "search_failed"
+      ],
+      "title": "Status"
+     },
+     "groups": {
+      "items": {
+       "$ref": "#/components/schemas/PlaceGroup"
+      },
+      "type": "array",
+      "title": "Groups",
+      "description": "링크·스크린샷 결과 (직접 검색은 비어 있음)"
+     },
+     "candidates": {
+      "items": {
+       "$ref": "#/components/schemas/Candidate"
+      },
+      "type": "array",
+      "title": "Candidates",
+      "description": "호환용: 모든 후보를 한 줄로 (best 먼저)"
+     },
+     "suggested_query": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Suggested Query"
+     },
+     "message": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Message"
+     },
+     "extracted": {
+      "items": {
+       "$ref": "#/components/schemas/Extracted"
+      },
+      "type": "array",
+      "title": "Extracted"
+     }
+    },
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "ResolveResult"
+   },
+   "SavedPlaceIn": {
+    "properties": {
+     "place": {
+      "$ref": "#/components/schemas/Place-Input"
+     },
+     "source": {
+      "type": "string",
+      "enum": [
+       "mine",
+       "couple"
+      ],
+      "title": "Source",
+      "description": "mine=내 보관함, couple=공동 보관함",
+      "default": "mine"
+     }
+    },
+    "type": "object",
+    "required": [
+     "place"
+    ],
+    "title": "SavedPlaceIn",
+    "description": "백엔드가 보내는 사용자의 저장 장소 1곳 (AI 서버는 저장하지 않음)."
+   },
+   "Step": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "done": {
+      "type": "boolean",
+      "title": "Done",
+      "default": false
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "label"
+    ],
+    "title": "Step"
+   },
+   "TimeRange": {
+    "properties": {
+     "open": {
+      "type": "string",
+      "pattern": "^([0-3]\\d|4[0-7]):[0-5]\\d$",
+      "title": "Open",
+      "description": "HH:MM"
+     },
+     "close": {
+      "type": "string",
+      "pattern": "^([0-3]\\d|4[0-7]):[0-5]\\d$",
+      "title": "Close",
+      "description": "HH:MM, 자정 넘으면 24 이상 (예: 26:00 = 다음날 02:00)"
+     }
+    },
+    "type": "object",
+    "required": [
+     "open",
+     "close"
+    ],
+    "title": "TimeRange"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   },
+   "WeeklyHours": {
+    "properties": {
+     "days": {
+      "additionalProperties": {
+       "items": {
+        "$ref": "#/components/schemas/TimeRange"
+       },
+       "type": "array"
+      },
+      "type": "object",
+      "title": "Days"
+     },
+     "breaks": {
+      "additionalProperties": {
+       "items": {
+        "$ref": "#/components/schemas/TimeRange"
+       },
+       "type": "array"
+      },
+      "type": "object",
+      "title": "Breaks"
+     },
+     "last_order": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Last Order"
+     },
+     "closed_days": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Closed Days"
+     },
+     "partial": {
+      "type": "boolean",
+      "title": "Partial",
+      "description": "일부 요일/시작시간만 알려진 경우",
+      "default": false
+     },
+     "earliest_open": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Earliest Open",
+      "description": "'17:00에 영업 시작'처럼 시작 시각만 알 때"
+     },
+     "raw": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Raw"
+     }
+    },
+    "type": "object",
+    "title": "WeeklyHours",
+    "description": "구조화된 영업시간. 요일 키가 없으면 '정보 없음', 빈 리스트면 '휴무'."
+   }
+  }
+ }
+}

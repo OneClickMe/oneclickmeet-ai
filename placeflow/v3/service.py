@@ -22,8 +22,6 @@ from .walking import distance_m
 
 def _place_card(p: Place, **extra) -> dict:
     d = p.model_dump(mode="json")
-    d["subtitle"] = p.subtitle()
-    d["hours_notice"] = p.hours_notice()
     d.update(extra)
     return d
 

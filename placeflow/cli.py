@@ -61,6 +61,10 @@ def main(argv=None):
     sub.add_parser("export-schema")
     sv = sub.add_parser("serve", help="실험용 웹 화면 실행")
     sv.add_argument("--port", type=int, default=8000)
+    api = sub.add_parser("api", help="AI 서버(FastAPI) 실행 → /docs")
+    api.add_argument("--host", default="127.0.0.1", help="외부에서 접속하려면 0.0.0.0 (AI_SERVICE_KEY 설정 권장)")
+    api.add_argument("--port", type=int, default=8001)
+    api.add_argument("--reload", action="store_true", help="코드 변경 시 자동 재시작 (개발용)")
     a = ap.parse_args(argv)
     from .envfile import load_env
 
@@ -73,6 +77,15 @@ def main(argv=None):
         from .server import serve
 
         serve(a.port)
+        return 0
+    if a.cmd == "api":
+        try:
+            import uvicorn
+        except ImportError:
+            print("FastAPI 서버 패키지가 없습니다 → python3 -m pip install -r requirements-api.txt", file=sys.stderr)
+            return 2
+        print(f"OneClickMeet AI API: http://{a.host}:{a.port}/docs  (종료: Ctrl+C)")
+        uvicorn.run("placeflow.ai_api.main:app", host=a.host, port=a.port, reload=a.reload)
         return 0
 
     try:

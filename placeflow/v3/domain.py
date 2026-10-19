@@ -21,7 +21,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, computed_field, Field
 
 from .. import hours as hours_mod
 from ..models import WeeklyHours
@@ -72,12 +72,16 @@ class Place(BaseModel):
     def pos(self) -> tuple[float, float]:
         return (self.lat, self.lng)
 
+    @computed_field  # 응답 JSON 에 자동으로 포함 (요청에 들어 있으면 무시)
+    @property
     def hours_notice(self) -> str:
         """장소 상세 '운영시간' 줄. 확인된 정보가 없으면 V3 안내 문구."""
         if self.opening_hours and not self.opening_hours.partial:
             return hours_mod.summary(self.opening_hours)
         return HOURS_NOTICE
 
+    @computed_field
+    @property
     def subtitle(self) -> str:
         """카드 부제 '맛집 · 연남동'."""
         return " · ".join(x for x in (self.category_label, self.area_label) if x)

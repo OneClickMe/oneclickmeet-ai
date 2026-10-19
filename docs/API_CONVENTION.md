@@ -1,190 +1,140 @@
-# OneClickMeet V3 — 백엔드·프론트엔드 연결 API 및 코드 컨벤션
+# OneClickMeet AI 워크플로우 v1.1 — AI 연결 API 및 코드 컨벤션
 
-> 기준: Figma `와이어프레임(mid-fi)` › `V3 - 재원` 확정 IA
-> 구현 위치: `placeflow/v3/` (Python 3.10+, pydantic v2)
-> 실험 서버: `python -m placeflow serve`. V3 화면은 `/`, 이전 v0.2 화면은 `/legacy`에서 열림
-> 이 문서는 **계약(contract)** 이다. 앱 백엔드를 다른 언어로 새로 만들 때도 요청·응답 모양과 에러 코드는 그대로 지킨다.
+> **범위:** 이 문서는 **AI 기능만** 다룬다.
+> - 장소 인식: 링크·스크린샷·캡션에서 장소를 추출하고, 네이버 지역검색 후보와 맞춘다.
+> - 코스 추천: 도보 코스 추천, 교체 후보, 주변 놀거리.
+>
+> 회원·보관함(하트)·메모·코스 저장/편집·커플 같은 **일반 CRUD는 백엔드 소관**이라 이 문서에서 다루지 않는다.
+>
+> - 기준: Figma `와이어프레임(mid-fi) › V3 - 재원` 확정 IA. "V3"는 와이어프레임 버전이고, 워크플로우 버전은 v1.1이다.
+> - 구현: AI 로직 `placeflow/v3/` · AI 서버(FastAPI) `placeflow/ai_api/` (Python 3.10+, pydantic v2)
+> - 실행: `python -m placeflow api --port 8001` → Swagger `http://127.0.0.1:8001/docs`, 명세 파일 `docs/openapi.json`
+> - 접두사 `/ai/v1`. **상태 없음** — AI 서버는 사용자 데이터를 저장하지 않는다.
 
 ---
 
 ## 0. 한눈에 보기
 
 ```
-[프론트(앱)] ──HTTP JSON──▶ [백엔드 API]  ──import──▶  placeflow.v3.service.OneClickMeetService
-                                                         ├─ save_flow   (링크·스크린샷·검색 → 후보)
-                                                         ├─ recommend   (도보 코스 추천)
-                                                         ├─ domain      (코스 편집·항목·검증 순수 함수)
-                                                         ├─ search      (네이버 지역검색 / 데모)
-                                                         └─ repo        (저장소 인터페이스, 실험용 JsonRepo)
+[앱] ──▶ [백엔드] ── 사용자·보관함·코스 DB
+              │
+              └──HTTP──▶ [AI 서버 FastAPI /ai/v1]  placeflow.ai_api → placeflow.v3
+                                 ├─ 장소 인식   pipeline(크롤링·OCR·추출) → save_flow(후보 매칭)
+                                 ├─ 코스 추천   recommend(후보 수집 → 도보 그래프 → 빔 탐색)
+                                 └─ 장소 검색   search(네이버 지역검색 API HUB / 데모)
 ```
 
-| 연결 방식 | 언제 쓰나 |
-|---|---|
-| **A. Python 백엔드에서 직접 import** | FastAPI·Django 같은 Python 서버. `OneClickMeetService`를 만들고, 엔드포인트마다 메서드 하나를 호출한다. 저장소만 DB 구현체로 바꾸면 된다(§7). |
-| **B. 이 문서의 REST 계약대로 다른 언어로 재구현** | Spring·Node 서버. 추천·후보 로직은 Python 서비스(사이드카)로 띄우고, 나머지 CRUD는 직접 구현한다. |
-| **C. 실험 서버 그대로 사용** | 프론트 개발 초기의 목업 서버. `/api/v3/*`가 이 문서와 똑같이 동작한다. |
+**역할 분리**
+- **백엔드**: 사용자, 저장한 장소(보관함), 코스를 DB에 보관한다. AI를 호출할 때 필요한 데이터를 요청에 담아 보낸다. 예: 사용자가 저장한 장소 목록.
+- **AI**: 받은 입력으로 계산만 하고 결과를 돌려준다. **사용자 데이터를 저장하지 않는다.**
+- AI가 돌려준 `Place`는 백엔드가 `place_id`를 키로 저장한다. 그 뒤 추천을 요청할 때 그대로 다시 보낸다.
+
+**연결 방법 (백엔드도 Python)**
+
+| 방법 | 언제 | 방법 |
+|---|---|---|
+| **A. HTTP 호출 (권장)** | 백엔드와 AI 서버를 따로 배포할 때. OCR·크롤링 부하를 백엔드와 분리할 수 있음 | §4의 `/ai/v1/*` 호출 |
+| **B. 함수 직접 import** | 한 프로세스에서 같이 돌릴 때(초기 개발) | §6의 함수 호출. 같은 결과 모델(pydantic)을 그대로 받음 |
 
 ---
 
 ## 1. 공통 규칙
 
-### 1.1 URL · 메서드
-
-- 접두사는 `/api/v3`.
-- 리소스 이름은 **복수형 kebab-case**: `/saved-places`, `/courses`, `/recommendations`.
-- 메서드
-  - 조회: `GET`
-  - 생성이나 "계산 요청"(추천, 후보 찾기): `POST`
-  - 전체 교체·수정: `PUT`
-  - 삭제: `DELETE`
-- 경로 파라미터는 ID: `/courses/{course_id}`, `/places/{place_id}`. 쿼리는 필터: `?scope=personal|couple`.
-
-### 1.2 응답 봉투 (Envelope)
-
-모든 응답은 아래 두 모양 중 하나다.
-
+### 1.1 응답 봉투 (Envelope)
 ```json
 { "ok": true,  "data": { ... } }
-{ "ok": false, "error": { "code": "version_conflict", "message": "다른 사람이 먼저 코스를 수정했어요. ..." } }
+{ "ok": false, "error": { "code": "invalid_input", "message": "링크나 공유 문구를 붙여넣어 주세요." } }
 ```
-
-- **HTTP 상태코드와 `error.code`를 함께 본다.** 화면 분기는 `error.code`로 한다.
 - `message`는 사용자에게 그대로 보여줘도 되는 한국어 문장이다.
 - **정상 흐름의 분기는 실패가 아니다.**
-  - 예: "추천할 후보가 부족함", "스크린샷에서 장소를 못 찾음".
+  - 예: 후보 없음, 스크린샷 인식 실패, 추천 후보 부족.
   - 이런 경우는 `200 OK` + `data.status`로 내려준다(§3).
-  - 프론트는 `data.status`를 보고 각 실패 화면으로 보낸다.
 
-### 1.3 에러 코드 → HTTP
+### 1.2 에러 코드 → HTTP
 
-| code | HTTP | 뜻 / 프론트 처리 |
+| code | HTTP | 뜻 |
 |---|---|---|
-| `invalid_input` | 400 | 필수 값 누락, 형식 오류. 입력 화면에 메시지 표시 |
-| `invalid_op` / `invalid_order` | 400 | 코스 편집 요청이 잘못됨 (순서 목록 불일치 등) |
-| `forbidden` | 403 | 남의 코스 수정 시도 |
-| `place_not_found` / `course_not_found` / `stop_not_found` / `item_not_found` / `not_saved` / `not_found` | 404 | 대상 없음. 목록을 새로고침 |
-| `version_conflict` | 409 | 공동 코스 동시 수정. "새로 불러오기" 안내 |
-| `too_few_stops` / `too_many_stops` / `duplicate_place` / `orphan_item` | 422 | 코스 저장 규칙 위반(3~5곳, 중복, 고아 항목) |
-| `external_api_failed` | 502 | 외부 검색 API 실패 (검색 이외 경로에서 발생한 경우) |
-| `extractor_unavailable` | 503 | 링크·스크린샷 추출기 설정 오류 |
-| `internal` | 500 | 서버 버그 (실험 서버는 `detail`에 traceback 포함) |
-| `network` | — | **프론트 전용.** `fetch` 자체가 실패함 → 네트워크 오류 화면 |
+| `invalid_input` | 400 | 필수 값 누락, 형식 오류 (이미지 형식, 6장 이상, 장당 10MB 초과, http 링크 아님, 요청 모델 검증 실패 등) |
+| `unauthorized` | 401 | `AI_SERVICE_KEY`를 설정했는데 `X-AI-Key` 헤더가 없거나 틀림 |
+| `place_not_found` | 404 | 기준 장소·교체 대상 장소 정보가 없음 |
+| `external_api_failed` | 502 | 네이버 지역검색 실패 (추천에서는 `data.status`로 내려가고, 그 밖의 경로에서만 에러로 올라옴) |
+| `extractor_unavailable` | 503 | 추출기 설정 오류 (LLM 키 없음, 서버에 OCR(tesseract+kor) 없음 → 스크린샷 처리 불가) |
+| `internal` | 500 | 서버 버그 |
 
-### 1.4 데이터 표기
+### 1.3 데이터 표기
 
 | 항목 | 규칙 |
 |---|---|
-| JSON 키 | `snake_case` (`place_id`, `share_with_couple`) |
-| ID | 접두사 + 무작위: `sp_`(저장), `co_`(코스), `st_`(코스 안 장소), `it_`(항목). 장소는 `nv_` + sha1(이름\|도로명주소) 16자 |
-| 시간 | ISO-8601 UTC 문자열 `2026-10-16T05:12:00+00:00` |
-| 금액 | **정수 원(KRW), 2인 합계.** 0 ≤ amount ≤ 10,000,000 |
+| JSON 키 | `snake_case` |
+| 장소 ID | `nv_` + sha1(공백 뺀 이름 \| 도로명주소) 앞 16자. 네이버 지역검색 결과에 고유 ID가 없어서 만든다 |
 | 좌표 | WGS84 `lat`, `lng` (float) |
-| 거리·시간 | 도보 분은 정수(올림). 반경은 m |
-| 사용자 | 실험 서버는 `X-User-Id` 헤더를 쓴다(기본 `me`). **실서비스는 인증 토큰에서 user_id를 꺼내고, 이 헤더는 받지 않는다.** |
+| 도보 시간 | 정수 분(올림). 반경은 m |
 | 빈 값 | 없으면 `null`. 빈 배열은 `[]` (키를 생략하지 않음) |
-
-### 1.5 프론트 호출 규칙
-
-```js
-// 공통 호출기 — 실험 화면(placeflow/web/index.html)의 api() 와 같은 규칙
-async function api(method, path, body) {
-  let res;
-  try {
-    res = await fetch('/api/v3' + path, {
-      method,
-      headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  } catch { throw new ApiError('network', '서버에 연결하지 못했어요.'); }
-  const j = await res.json();
-  if (!j.ok) throw new ApiError(j.error.code, j.error.message, res.status);
-  return j.data;            // 화면 분기는 data.status 로
-}
-```
-
-1. **POST·PUT 본문은 항상 JSON**(`Content-Type: application/json`). 이미지도 base64로 JSON에 넣는다(§4.2).
-2. **서버가 계산한 값을 그대로 쓴다.** 프론트에서 금액 합계, 도보 시간, 저장 가능 여부를 다시 계산하지 않는다. 코스를 편집할 때마다 `/courses/ops`를 호출하고, 응답의 `summary`를 그린다.
-3. **드래프트는 프론트가 들고 있다.** 추천에서 고른 코스는 `POST /courses`를 하기 전까지 서버에 저장되지 않는다. 화면을 나갈 때 `dirty`면 "저장하지 않고 나갈까요?"를 띄운다.
-4. **코스를 수정해서 저장할 때는 항상 `expected_version`을 보낸다.** 409를 받으면 덮어쓰지 말고 다시 불러오게 한다.
-5. **"다시 추천받기"를 할 때는 지금까지 보여준 모든 `signature`를 `exclude_signatures`에 누적해서 보낸다.**
-6. 로딩 단계 문구 3개(근처 후보 찾는 중 → 도보 거리 확인 중 → 코스 구성 중)는 응답의 `steps`와 같다. 요청 중에는 프론트가 시간에 맞춰 순서대로 보여준다.
 
 ---
 
 ## 2. 데이터 모델
 
-> 정의 원본: `placeflow/v3/domain.py`, `recommend.py`, `save_flow.py`. 아래는 JSON 모양이다.
+> 정의 원본: `placeflow/v3/domain.py`(Place, Anchor), `save_flow.py`, `recommend.py`
 
-### Place — 장소 원본 (보관함 저장 여부와는 별개)
+### Place — AI가 돌려주는 장소
 ```json
 {
-  "place_id": "nv_3f2a9c0d1e4b5a6c", "name": "연남 파스타집", "branch": null,
-  "category": "restaurant", "sub_category": "western", "category_label": "맛집",
-  "area_label": "연남동", "road_address": "서울 마포구 ...", "jibun_address": null,
-  "lat": 37.5626, "lng": 126.9255, "phone": null, "map_url": null,
-  "provider": "naver_local",
-  "opening_hours": null,
-  "subtitle": "맛집 · 연남동",
+  "place_id": "nv_3f2a9c0d1e4b5a6c", "name": "오지다", "branch": null,
+  "category": "restaurant", "sub_category": "japanese", "category_label": "맛집",
+  "area_label": "방이동", "road_address": "서울특별시 송파구 백제고분로48길 24", "jibun_address": null,
+  "lat": 37.5131, "lng": 127.1123, "phone": null, "map_url": null,
+  "provider": "naver_local", "opening_hours": null,
+  "subtitle": "맛집 · 방이동",
   "hours_notice": "방문 전에 운영시간을 확인해주세요."
 }
 ```
-- `subtitle`과 `hours_notice`는 **응답에만 붙는 표시용 필드**다. 요청으로 보낼 때는 있어도 무시된다.
-- `category`는 `restaurant | cafe | bar | culture | activity | nature | shopping | stay | other` 중 하나다.
-- `opening_hours`가 없으면 `hours_notice`는 고정 문구다(V3: "운영시간을 확인해주세요").
-- `provider`는 `naver_local | demo | link` 중 하나다.
-
-### SavedPlace — 하트(보관함 저장)
-```json
-{ "saved_id": "sp_...", "owner_id": "me", "place_id": "nv_...", "origin": "link",
-  "source_url": "https://www.instagram.com/reel/...", "shared_with_couple": false, "saved_at": "..." }
-```
-`origin`은 `link | screenshot | search | recommendation | demo` 중 하나다.
-
-### PrivateMemo — 내 메모 (작성자 본인만 조회)
-`{ "owner_id", "target_type": "place|course", "target_id", "text" (≤1000), "updated_at" }`
+- `category`는 `restaurant | cafe | bar | culture | activity | nature | shopping | stay | other` 중 하나다. 소분류 전체는 `schema/taxonomy.json`에 있다.
+- `subtitle`과 `hours_notice`는 화면 표시용이라 응답에만 붙는다. 요청에 들어 있어도 무시한다.
+- `provider`는 `naver_local | link | demo` 중 하나다.
+- `phone`: NAVER API HUB 응답에서는 항상 비어 있다.
 
 ### Anchor — 추천 기준
 ```json
 { "type": "place",  "place_id": "nv_..." }
-{ "type": "region", "region_id": "yeonnam" }
+{ "type": "region", "region_id": "jamsil" }
 ```
+지원 지역(`region_id`): `yeonnam`(연남) · `seochon`(서촌) · `hyehwa`(혜화) · `jamsil`(잠실) · `sungshin`(성신여대역) · `hansung`(한성대입구역)
 
-### Course · CourseStop · CourseItem
+### ResolveResult — 장소 인식 결과
+링크·스크린샷 결과는 **링크에 나온 장소 1곳 = `groups[]` 1개**로 내려온다(릴스 '맛집 4곳' 대응). 직접 검색 결과는 `groups`가 비어 있고 `candidates`만 있다.
 ```json
 {
-  "course_id": "co_...", "owner_id": "me", "scope": "personal", "couple_id": null,
-  "title": "연남동 데이트 코스", "anchor": { "type": "place", "place_id": "nv_..." },
-  "stops": [ { "stop_id": "st_...", "place": { /* Place */ }, "is_anchor": true, "external": false } ],
-  "items": [ { "item_id": "it_...", "stop_id": "st_...", "name": "파스타 2개", "amount": 30000,
-               "checked": true, "updated_by": "me", "updated_at": "..." } ],
-  "version": 1, "created_at": "...", "updated_at": "..."
+  "status": "candidates",
+  "groups": [
+    { "extracted": { "order": 1, "name": "오지다", "branch": null,
+                     "address_hint": "서울 송파구 백제고분로48길 24", "category": "맛집" },
+      "status": "matched",
+      "best":   { "place": { /* Place */ }, "match_score": 1.0, "match_type": "exact",
+                  "reasons": ["주소 일치", "이름 일치"], "already_saved": false, "from_text": "오지다" },
+      "others": [ { "place": { "name": "회포차오지다", "...": "..." }, "match_score": 0.5, "match_type": "similar",
+                    "reasons": ["이름 일부만 같아요", "주소 다름"], "already_saved": false, "from_text": "오지다" } ] }
+  ],
+  "candidates": [ /* 모든 묶음의 best → others 순서로 한 줄 */ ],
+  "suggested_query": "오지다",
+  "extracted": [ /* groups[].extracted 와 같음 */ ],
+  "message": null
 }
 ```
-- `external`이 true면 추천 시점에 보관함에 없던 장소다. 화면에 **외부 추천** 배지를 붙인다.
-- `items`는 코스마다 따로 관리되고, `stop_id`로 장소에 묶인다.
 
-### CourseSummary — 서버가 계산하는 요약
-```json
-{
-  "stops": [ { "stop_id": "st_..", "order": 1, "name": "..", "is_anchor": true, "external": false,
-               "walk_from_prev_min": null, "item_count": 1, "checked_subtotal": 30000, "has_checked": true } ],
-  "confirmed_total": 30000,
-  "unchecked_stop_count": 3,
-  "total_walk_min": 18,
-  "long_legs": [],
-  "can_save": true,
-  "save_errors": []
-}
-```
-- `confirmed_total`: 확인된 금액. 체크한 항목만 더한다.
-- `unchecked_stop_count`: "체크된 항목 없음 N곳".
-- `long_legs`: 도보 10분을 넘는 구간의 도착 순번 (편집 후 경고용).
+| 필드 | 값 | 화면 처리 |
+|---|---|---|
+| `groups[].status` | `matched` · `similar_only` · `not_found` · `search_failed` | `not_found`·`search_failed`는 "찾지 못했어요 · 직접 검색"(검색창에 `extracted.name`) |
+| `best` | `match_type="exact"`인 1순위 (없으면 `null`) | **기본 체크** |
+| `others` | 최대 2~3개, 모두 `match_type="similar"` | 접어서 "다른 후보 N곳". **기본 체크하지 않음** |
+| `reasons` | 일치: `주소 일치` · `이름 일치` · `○○상가 일치` · `같은 동네` · `링크 정보`<br>주의: `이름 일부만 같아요` · `이름이 비슷해요` · `주소 다름` · `같은 이름의 다른 지점` | 일치는 초록, 주의는 주황 배지 |
+| `already_saved` | 요청의 `saved_place_ids`에 있으면 true | "이미 저장됨" 배지 |
 
-### RecommendResult
+### RecommendResult — 코스 추천 결과
 ```json
 {
   "status": "ok",
-  "region": { "region_id": "yeonnam", "name": "연남" },
+  "region": { "region_id": "jamsil", "name": "잠실" },
   "candidates_count": 24,
   "steps": [ { "key": "candidates", "label": "근처 후보 찾는 중", "done": true },
              { "key": "walking",    "label": "도보 거리 확인 중", "done": true },
@@ -200,383 +150,250 @@ async function api(method, path, body) {
   "message": null
 }
 ```
-`source`는 `mine | couple | external` 중 하나다.
-
-### ResolveResult — 장소 후보 확인
-링크·스크린샷 결과는 **링크에 나온 장소 1곳 = `groups[]` 1개**로 내려온다. 릴스 '맛집 4곳' 같은 모음 링크를 위해서다. 직접 검색 결과는 `groups`가 비어 있고 `candidates`만 있다.
-```json
-{
-  "status": "candidates",
-  "groups": [
-    { "extracted": { "order": 1, "name": "오지다", "branch": null,
-                     "address_hint": "서울 송파구 백제고분로48길 24", "category": "맛집" },
-      "status": "matched",
-      "best":   { "place": { /* Place + subtitle */ }, "match_score": 1.0, "match_type": "exact",
-                  "reasons": ["주소 일치", "이름 일치"], "already_saved": false, "from_text": "오지다" },
-      "others": [ { "place": { "name": "회포차오지다", "...": "..." }, "match_score": 0.5, "match_type": "similar",
-                    "reasons": ["이름 일부만 같아요", "주소 다름"], "already_saved": false, "from_text": "오지다" } ] },
-    { "extracted": { "order": 4, "name": "리사르커피", "...": "..." }, "status": "matched", "best": { }, "others": [] }
-  ],
-  "candidates": [ /* 호환용: 모든 묶음의 best → others 순서로 한 줄 */ ],
-  "suggested_query": "오지다",
-  "extracted": [ /* groups[].extracted 와 같음 */ ],
-  "message": null
-}
-```
-
-| 필드 | 값 | 프론트 처리 |
-|---|---|---|
-| `groups[].status` | `matched`(확실한 장소 있음) · `similar_only`(비슷한 이름만) · `not_found` · `search_failed` | `not_found`·`search_failed`는 "찾지 못했어요 · 직접 검색"(검색창에 `extracted.name`) |
-| `best` | `match_type="exact"`인 1순위 (없으면 `null`) | **기본 체크** |
-| `others` | 최대 2~3개, 모두 `match_type="similar"` | 접어서 "다른 후보 N곳". **기본 체크하지 않음**. "이 장소로"를 누르면 그 묶음의 선택을 바꿈 |
-| `reasons` | `주소 일치` · `이름 일치` · `○○상가 일치` · `같은 동네` · `링크 정보` / `이름 일부만 같아요` · `이름이 비슷해요` · `주소 다름` · `같은 이름의 다른 지점` | 앞쪽(일치)은 초록, 뒤쪽(주의)은 주황 배지 |
-
-**판정 규칙** (`save_flow.match`)
-- **exact**
-  - 캡션 주소의 **도로명+건물번호가 같고** 이름도 비슷하다.
-  - 또는 공백·기호를 뺀 **이름이 같다**. "○○점" 지점명은 붙어도 된다(닭튜브 = 닭튜브 방이점). 단, 주소가 다르면 안 된다.
-- **similar**
-  - 이름 일부만 같다(오지다 ⊂ 회포차오지다).
-  - 철자가 비슷하다(유사도 0.75 이상).
-  - 이름은 같은데 주소가 다르다(다른 지점).
-- **제외**: 이름이 무관하다.
-- 1순위(best)가 정해지면, 나머지 `이름 일치` 후보는 `같은 이름의 다른 지점`(similar)으로 내린다.
-- 주소가 없는 장소는 캡션 속 건물·상가 이름("장미상가")과 같은 링크 장소들이 모인 구(예: 송파구)를 보조 근거로 쓴다.
-- 링크 하나에서 최대 10곳까지 검색한다.
+- `source`는 `mine`(내 보관함) · `couple`(공동 보관함) · `external`(외부 추천) 중 하나다.
+- `external=true`인 장소에는 **외부 추천** 배지를 붙인다. 이 장소는 백엔드가 `Place` 그대로 저장하면 된다.
+- `signature`는 코스를 식별하는 값이다(장소 ID를 정렬해 이어 붙임). "다시 추천받기" 때 보낸다.
 
 ---
 
-## 3. 상태값 (`data.status`) → 화면
+## 3. 상태값 (`data.status`)
 
-### 3.1 장소 후보 (`POST /places/resolve`, `GET /places/search`)
+### 3.1 장소 인식
 
-| status | 화면 (Figma) | 프론트 동작 |
+| status | 화면 | 다음 동작 |
 |---|---|---|
-| `candidates` | 후보 확인 "이 장소가 맞나요?" / "장소 N곳을 찾았어요" | `groups`가 있으면 장소별 묶음 + 체크박스(best만 기본 체크) → `POST /saved-places/batch`. 없으면(직접 검색) 라디오 목록 → `POST /saved-places` |
+| `candidates` | 후보 확인 ("이 장소가 맞나요?" / "장소 N곳을 찾았어요") | 사용자가 고른 `Place`를 백엔드가 보관함에 저장 |
 | `no_match` | 직접 검색 | 검색창에 `suggested_query`를 미리 채움 |
 | `recognition_failed` | 스크린샷 인식 실패 | [직접 검색] / [다른 이미지 선택] |
-| `link_unreadable` | 링크 읽기 실패 (인스타 로그인 벽 등) | [직접 검색] / [스크린샷으로 올리기] |
+| `link_unreadable` | 링크 읽기 실패 (인스타 로그인 벽, 네이버 지도 robots.txt 등) | [직접 검색] / [스크린샷] / 앱 '공유 → 복사' 문구 붙여넣기 |
 | `search_failed` | 외부 검색 실패 | [다시 시도] / [직접 검색] |
 
-### 3.2 코스 추천 (`POST /recommendations`)
+### 3.2 코스 추천
 
-| status | 화면 | 프론트 동작 |
+| status | 화면 | 다음 동작 |
 |---|---|---|
-| `ok` | 코스 1/2/3 | 탭 3개, 지도, 목록, [편집] [이 코스 선택] [다시 추천받기] |
-| `unsupported_region` | 지원하지 않는 지역 | [다른 기준 선택]. 지원 지역 안내 문구는 `message` |
+| `ok` | 코스 1/2/3 | [이 코스 선택] [다시 추천받기] |
+| `unsupported_region` | 지원하지 않는 지역 | [다른 기준 선택]. 안내 문구는 `message` |
 | `not_enough_candidates` | 후보 부족 | [다른 기준 선택] [장소 더 저장하기]. **지역을 자동으로 넓히지 않음** |
-| `external_api_failed` | 외부 API 실패 | [다시 시도] [다른 기준 선택]. 이번에는 코스를 만들지 않음 |
+| `external_api_failed` | 외부 API 실패 | [다시 시도]. 이번에는 코스를 만들지 않음 |
 | `no_result` | 결과 없음 (다시 추천해도 새 코스 없음) | [다른 기준 선택] |
 | `anchor_not_found` | 기준 장소 없음 | 보관함에서 다시 선택 |
 
 ---
 
-## 4. 엔드포인트
+## 4. 엔드포인트 — AI 서버 (FastAPI, 접두사 `/ai/v1`)
 
-> 표의 "서비스 메서드"는 `OneClickMeetService`의 메서드다. Python 백엔드는 이 메서드를 그대로 호출하면 된다.
+| # | 메서드 · 경로 | 화면 | 요청 | 응답 `data` |
+|---|---|---|---|---|
+| 1 | `POST /ai/v1/places/resolve` | 장소 추가(링크·캡션) → 후보 확인 | JSON | `ResolveResult` |
+| 2 | `POST /ai/v1/places/resolve/screenshot` | 장소 추가(스크린샷) → 후보 확인 | **multipart** | `ResolveResult` |
+| 3 | `GET /ai/v1/places/search?q=` | 직접 검색 | 쿼리 | `ResolveResult` (groups 비어 있음) |
+| 4 | `POST /ai/v1/places/nearby` | 장소 상세 › 주변 놀거리 | JSON | `{candidates: [{place, source}]}` |
+| 5 | `POST /ai/v1/recommendations` | 로딩 → 코스 1/2/3 / 실패 | JSON | `RecommendResult` |
+| 6 | `POST /ai/v1/recommendations/replacements` | 코스 편집 › 교체 시트 | JSON | `{candidates: [{place, source}]}` |
+| 7 | `GET /ai/v1/regions` | 기준 선택 › 지역 | — | `{regions: [{region_id, name, lat, lng, radius_m}]}` |
+| — | `GET /health` | 운영 확인 (키 없이) | — | `{status, workflow_version, search_provider, extractor, ocr, ocr_ready, auth_required}` (봉투 없음) |
 
-### 4.1 목록
+**공통**
+- 인증: `AI_SERVICE_KEY`를 설정하면 모든 `/ai/v1/*` 요청에 `X-AI-Key: <키>` 헤더가 필요하다. 설정하지 않으면 키 없이 열린다(로컬 개발용).
+- 사용자 데이터는 **요청에 담아 보낸다**: `saved_places`(저장 장소, 최대 500곳)와 `saved_place_ids`(이미 저장 표시용, 최대 2000개). AI 서버는 이 데이터를 보관하지 않는다.
+- 응답은 모두 `{ok, data}` / `{ok:false, error}`다(§1.1).
+- 느린 작업(크롤링·OCR·네이버 검색)이 있어서 엔드포인트는 스레드풀에서 동기로 돈다. 스크린샷 인식은 동시에 `AI_OCR_CONCURRENCY`개(기본 2개)까지만 처리한다.
+- 권장 타임아웃(백엔드 → AI): 링크·스크린샷 30초, 추천 15초, 나머지 10초
 
-| # | 메서드 · 경로 | 화면 (Figma V3) | 서비스 메서드 |
-|---|---|---|---|
-| 1 | `GET /home` | 홈 | `home(uid)` |
-| 2 | `GET /regions` | 기준 선택 › 지역 | `regions(uid)` |
-| 3 | `POST /places/resolve` | 장소 추가 → 인식 중 → 후보 확인 / 실패 | `resolve_place(uid, kind, ...)` |
-| 4 | `GET /places/search?q=` | 직접 검색 | `resolve_place(uid, "search", query=q)` |
-| 5 | `GET /places/{place_id}` | 장소 상세 | `place_detail(uid, place_id)` |
-| 6 | `POST /saved-places` | 후보 확인 › 개인 보관함에 저장 / 하트 ON | `save_place(uid, place, origin, source_url, share_with_couple)` |
-| 6-1 | `POST /saved-places/batch` | 후보 확인 › 선택한 N곳 저장 | `save_places(uid, places, origin, source_url, share_with_couple)` |
-| 7 | `DELETE /saved-places/{place_id}` | 하트 OFF | `unsave_place(uid, place_id)` |
-| 8 | `GET /saved-places?scope=personal\|couple` | 보관함 (목록·지도) | `list_saved(uid, scope)` |
-| 9 | `PUT /memos` | 장소·코스 상세 › 내 메모 | `set_memo(uid, target_type, target_id, text)` |
-| 10 | `POST /recommendations/conditions` | 추천 조건 확인 | `recommend_conditions(uid, anchor)` |
-| 11 | `POST /recommendations` | 로딩 → 코스 1/2/3 / 실패 화면 | `recommend(uid, anchor, exclude_signatures)` |
-| 12 | `POST /recommendations/replacements` | 코스 편집 › 교체 시트 | `replacement_candidates(uid, place_ids, index)` |
-| 13 | `POST /courses/draft` | 이 코스 선택 → 코스 상세(저장 전) | `draft_from_recommendation(uid, recommended, anchor)` |
-| 14 | `POST /courses/ops` | 코스 상세·편집의 모든 수정 | `apply_op(uid, course, op)` |
-| 15 | `POST /courses` | 코스 저장 (처음) | `save_course(uid, course, None, memo)` |
-| 16 | `PUT /courses/{course_id}` | 변경 사항 저장 | `save_course(uid, course, expected_version, memo)` |
-| 17 | `GET /courses?scope=` | 코스 탭 목록 | `list_courses(uid, scope)` |
-| 18 | `GET /courses/{course_id}` | 코스 상세 (저장됨) | `get_course(uid, course_id)` |
-| 19 | `DELETE /courses/{course_id}` | 코스 삭제 | `delete_course(uid, course_id)` |
-| — | `GET·PUT /settings`, `POST /dev/seed`, `POST /dev/reset` | 마이 (실험 전용) | **실서비스에는 만들지 않음** |
-
-### 4.2 요청·응답 예시
-
-#### ③ 장소 후보 찾기 — `POST /places/resolve`
+### 4.1 장소 인식 (링크·캡션) — `POST /ai/v1/places/resolve`
 ```jsonc
-// 링크
-{ "type": "link", "url": "https://www.instagram.com/reel/xxx", "note": "(선택) 캡션 붙여넣기" }
-// 스크린샷 (최대 5장, png/jpg/jpeg/webp/gif, dataURL 또는 base64)
-{ "type": "screenshot", "images": [ { "name": "a.png", "b64": "data:image/png;base64,iVBOR..." } ] }
-// 텍스트(캡션만)
-{ "type": "text", "note": "📍연남 보드게임 카페 서울 마포구 연남동" }
-// 직접 검색 (GET /places/search 와 같음)
-{ "type": "search", "query": "연남 카페" }
+// 링크 — url 에 앱 '공유 → 복사' 문구 전체를 넣어도 된다 (첫 http 링크만 쓰고 나머지 문구는 장소 단서로 사용)
+{ "type": "link", "url": "https://www.instagram.com/reel/xxx", "note": "(선택) 캡션 붙여넣기",
+  "saved_place_ids": ["nv_..."] }
+// 캡션만
+{ "type": "text", "note": "1. 오지다 (서울 송파구 백제고분로48길 24) ...", "saved_place_ids": [] }
 ```
-- 응답: `ResolveResult` (§2).
-- **이 단계에서는 저장하지 않는다.** 저장은 ⑥에서 한다.
-- 링크는 robots.txt를 지키고 호스트마다 1초 간격으로 읽는다. 인스타처럼 로그인 벽이 있으면 `link_unreadable`이 나온다.
+- 응답: `ResolveResult`
+- 링크 수집 원칙
+  - robots.txt를 지키고, 호스트마다 1초 간격을 둔다.
+  - 네이버 지도·플레이스는 robots.txt가 막아서 읽지 않는다. 인스타는 로그인 벽이 있으면 `link_unreadable`이다.
+  - 둘 다 `note`에 캡션이나 공유 문구가 있으면 그 텍스트로 계속 진행한다.
+- 링크 하나에서 최대 10곳까지 인식한다. **저장하지 않는다.** 사용자가 고른 `Place`는 백엔드가 저장한다.
 
-#### ⑥ 보관함에 저장 — `POST /saved-places`
-```json
-{ "place": { "place_id": "nv_...", "name": "...", "lat": 37.56, "lng": 126.92, "...": "..." },
-  "origin": "link", "source_url": "https://www.instagram.com/reel/xxx", "share_with_couple": false }
-```
-- 응답: `{ "saved": SavedPlace, "place": Place }`.
-- 같은 장소를 다시 저장해도 하나만 유지된다(**멱등**).
-- 커플 연결이 없으면 `share_with_couple`은 무시된다.
-
-#### ⑥-1 여러 곳 저장 — `POST /saved-places/batch`
-```json
-{ "places": [ { /* Place */ }, { /* Place */ } ], "origin": "link",
-  "source_url": "https://www.instagram.com/reel/xxx", "share_with_couple": false }
-```
-- 응답: `{ "count": 4, "items": [ { "saved": SavedPlace, "place": Place } ] }`.
-- 한 번에 최대 10곳까지 저장한다.
-- 형식이 틀린 장소가 하나라도 있으면 아무것도 저장하지 않는다.
-- 이미 저장한 장소는 그대로 유지된다(멱등).
-
-#### ⑤ 장소 상세 — `GET /places/{place_id}`
-```json
-{ "place": { "...": "...", "hours_notice": "월-일 11:30-21:30 · 브레이크 15:00-17:00" },
-  "hearted": true, "source_url": "https://...", "shared_with_couple": false,
-  "my_memo": "웨이팅 길면 카페부터",
-  "nearby": [ { "...": "Place", "source": "external" } ] }
-```
-`nearby`는 걸어서 10분 이내의 놀거리·카페 최대 3곳이다. 저장한 장소를 먼저 보여준다.
-
-#### ⑨ 내 메모 — `PUT /memos`
-`{ "target_type": "place", "target_id": "nv_...", "text": "..." }`. 빈 문자열을 보내면 삭제된다. 메모는 작성자만 조회할 수 있다(커플 상대도 볼 수 없음).
-
-#### ⑪ 코스 추천 — `POST /recommendations`
-```json
-{ "anchor": { "type": "place", "place_id": "nv_..." }, "exclude_signatures": [] }
-```
-- 응답: `RecommendResult`.
-- 다시 추천받을 때는 앞에서 받은 `courses[].signature`를 **모두** 누적해서 보낸다.
-
-#### ⑫ 교체 후보 — `POST /recommendations/replacements`
-```json
-{ "place_ids": ["nv_a", "nv_b", "nv_c", "nv_d"], "index": 1 }
-```
-- 응답: `{ "candidates": [ Place + "source" ] }`, 최대 8곳이다.
-- 앞·뒤 장소 **양쪽에서 모두** 도보 10분 이내인 곳만 고른다. 저장한 장소가 먼저 나온다.
-
-#### ⑬ 드래프트 만들기 — `POST /courses/draft`
-```json
-{ "recommended": { /* RecommendedCourse 그대로 */ }, "anchor": { "type": "place", "place_id": "nv_..." } }
-```
-응답: `{ "course": Course(version 0), "summary": CourseSummary, "my_memo": "" }`. 아직 저장된 상태가 아니다.
-
-#### ⑭ 코스 편집 1건 — `POST /courses/ops`
-```jsonc
-{ "course": { /* 현재 드래프트 Course */ }, "op": { "type": "add_item", "stop_id": "st_..", "name": "파스타 2개", "amount": 30000 } }
-```
-| op.type | 필드 | 규칙 |
+### 4.2 장소 인식 (스크린샷) — `POST /ai/v1/places/resolve/screenshot`
+`multipart/form-data`
+| 필드 | 형식 | 설명 |
 |---|---|---|
-| `reorder` | `stop_ids` (전체, 새 순서) | 항목 **유지** |
-| `replace` | `stop_id`, `place` | 그 장소의 항목 **삭제**. 중복 장소는 `duplicate_place` |
-| `remove_stop` | `stop_id` | 그 장소의 항목 **삭제** |
-| `add_stop` | `place`, `index?` (없으면 맨 뒤) | 5곳 초과면 `too_many_stops` |
-| `add_item` | `stop_id`, `name`(1~40자), `amount`, `checked?`(기본 true) | 금액은 2인 합계 |
-| `update_item` | `item_id`, `name?`, `amount?`, `checked?` | |
-| `remove_item` | `item_id` | |
+| `files` | 파일 1~5개 | png·jpg·jpeg·webp·gif, 장당 최대 10MB(`AI_MAX_IMAGE_MB`). 여러 장이면 같은 장소의 여러 화면(홈·메뉴·정보 탭)으로 보고 합쳐 읽는다 |
+| `note` | 문자열 (선택) | 함께 붙여넣은 캡션·메모 |
+| `saved_place_ids` | 문자열, 여러 번 | 이미 저장한 place_id |
 
-- 응답: `{ "course", "summary" }`.
-- 서버는 저장하지 않는다. 프론트는 받은 `course`로 드래프트를 바꾼다.
-- 편집 중에는 3곳 미만이 되어도 되지만, 그러면 `summary.can_save=false`가 된다.
-
-#### ⑮⑯ 코스 저장
-```jsonc
-POST /courses                 { "course": { ... }, "memo": "(선택) 내 메모" }
-PUT  /courses/{course_id}     { "course": { ... }, "expected_version": 3, "memo": "..." }
+```bash
+curl -X POST http://127.0.0.1:8001/ai/v1/places/resolve/screenshot \
+  -H "X-AI-Key: $AI_SERVICE_KEY" -F "files=@capture.png" -F "saved_place_ids=nv_abc"
 ```
-- 응답: `{ "course": Course(version+1), "summary", "my_memo" }`.
-- 3~5곳, 중복, 고아 항목을 검사하고, 어기면 422를 돌려준다.
-- `expected_version`이 다르면 409를 돌려준다.
-- **코스를 저장해도 그 안의 장소가 보관함에 자동으로 담기지 않는다.**
-- 프론트 저장 버튼의 상태는 `idle` → `saving` → `done`이고, 실패하면 `failed`가 되어 [다시 시도]를 보여준다.
+```python
+# 백엔드(Python) 예: httpx
+r = httpx.post(f"{AI}/ai/v1/places/resolve/screenshot", headers={"X-AI-Key": KEY},
+               files=[("files", (f.filename, f.file, f.content_type)) for f in uploads],
+               data={"note": note, "saved_place_ids": saved_ids}, timeout=30)
+```
+- 응답: `ResolveResult`
+- 업로드한 이미지는 처리 후 바로 지우고 보관하지 않는다.
+- 서버에 OCR이 없으면 `503 extractor_unavailable`이다.
+
+### 4.3 직접 검색 — `GET /ai/v1/places/search?q=잠실 카페&saved_place_ids=nv_a&saved_place_ids=nv_b`
+응답은 `ResolveResult`다. `groups`는 비어 있고 `candidates`에 검색 결과가 있다. 외부 검색이 실패하면 `status=search_failed`다.
+
+### 4.4 코스 추천 — `POST /ai/v1/recommendations`
+```json
+{
+  "anchor": { "type": "place", "place_id": "nv_a" },
+  "anchor_place": { /* 기준 장소 Place (선택: 없으면 saved_places 에서 찾음) */ },
+  "saved_places": [ { "place": { /* Place */ }, "source": "mine" },
+                    { "place": { /* Place */ }, "source": "couple" } ],
+  "exclude_signatures": []
+}
+```
+- 응답: `RecommendResult`
+- `anchor.type="region"`이면 `{"type": "region", "region_id": "jamsil"}`만 보내도 된다. 그래도 `saved_places`를 보내면 저장한 장소가 우선 들어간다.
+- **다시 추천받기:** 앞에서 받은 `courses[].signature`를 **모두** 누적해 `exclude_signatures`로 보낸다.
+- 기준 장소를 찾을 수 없으면(`anchor_place` 없음 + `saved_places`에도 없음) `status=anchor_not_found`다.
+- `anchor.place_id`와 `anchor_place.place_id`가 다르면 400이다.
+- 로딩 화면 문구 3개는 `steps`와 같다.
+
+### 4.5 교체 후보 — `POST /ai/v1/recommendations/replacements`
+```json
+{ "course_places": [ { /* Place */ }, { }, { }, { } ], "index": 1, "saved_places": [ ], "limit": 8 }
+```
+- 응답: `{ "candidates": [ { "place": Place, "source": "mine|couple|external" } ] }`
+- 앞·뒤 장소 **양쪽 모두에서** 도보 10분 이내인 곳만 고른다. 저장한 장소가 먼저 나온다. 코스에 이미 있는 장소는 뺀다.
+- `index`가 범위를 벗어나면 400이다.
+
+### 4.6 주변 놀거리 — `POST /ai/v1/places/nearby`
+```json
+{ "place": { /* Place */ }, "saved_places": [ ], "limit": 3 }
+```
+- 응답: `{ "candidates": [ { "place": Place, "source": ... } ] }`
+- 걸어서 10분 이내의 놀거리·카페를 저장한 장소 먼저 보여준다. 외부 검색이 실패하면 저장한 장소만 돌려준다(에러 아님).
+
+### 4.7 지원 지역 — `GET /ai/v1/regions`
+응답은 `{ "regions": [ { "region_id": "jamsil", "name": "잠실", "lat": 37.511, "lng": 127.098, "radius_m": 1500 } ] }`다. 중심 좌표·반경은 근사값이다.
+
+> "추천 조건 확인" 화면 문구(도보 · 반경 1km · 장소 사이 10분 · 3~5곳)는 고정 규칙이라 AI 호출 없이 프론트·백엔드에서 표시한다(§5.3).
 
 ---
 
-## 5. 비즈니스 규칙 (V3 확정)
+## 5. AI 판정·추천 규칙
+
+### 5.1 후보 매칭 (`save_flow.match`)
+- **exact (확실한 일치, 기본 선택)**
+  - 캡션 주소의 **도로명+건물번호가 같고** 이름도 비슷하다.
+  - 또는 공백·기호를 뺀 **이름이 같다**. "○○점" 지점명은 붙어도 된다(닭튜브 = 닭튜브 방이점). 단, 주소가 다르면 안 된다.
+- **similar (비슷한 이름, 기본 선택 안 함)**
+  - 이름 일부만 같다(오지다 ⊂ 회포차오지다).
+  - 철자가 비슷하다(유사도 0.75 이상).
+  - 이름은 같은데 주소가 다르다(다른 지점).
+- **제외**: 이름이 무관하다.
+- 1순위가 정해지면, 나머지 `이름 일치` 후보는 `같은 이름의 다른 지점`(similar)으로 내린다.
+- 주소가 없는 장소는 캡션 속 건물·상가 이름("장미상가")과 같은 링크 장소들이 모인 구(예: 송파구)를 보조 근거로 쓴다.
+- 스크린샷에서 상호명이 깨지면 정확히 읽힌 **주소로 검색**해서 같은 건물의 가게를 후보로 찾는다.
+
+### 5.2 장소 추출 (`placeflow.pipeline`)
+- 입력을 판별한다: 인스타·네이버 블로그·네이버 플레이스·naver.me·이미지·텍스트
+- 수집(크롤링·OCR) → 추출(규칙 기반, LLM은 선택) → 분류(`taxonomy.py`) 순서로 처리한다.
+- **OCR**: Tesseract `kor+eng`를 쓴다.
+  - 이미지를 약 1500px 폭으로 확대한 뒤 전처리 3가지로 동시에 읽고, 품질 점수가 가장 높은 결과를 고른다.
+  - 상호명 줄이 깨지면 다른 결과에서 상호명을 가져오고, 빠진 주소도 다른 결과에서 보충한다.
+- **개인정보**: 개인 전화·이메일·@계정·주민번호 형태는 저장하지 않는다(`normalize.py`).
+
+### 5.3 코스 추천 (`recommend.py`)
 
 | 영역 | 규칙 | 코드 위치 |
 |---|---|---|
 | 이동 | 도보만. 도보 분 = 직선거리 × 1.3 ÷ 4.5km/h, 올림 | `walking.walk_minutes` |
-| 범위 | 기준 장소 반경 1,000m (`ANCHOR_RADIUS_M`), 장소 사이 도보 10분 이하 (`MAX_LEG_MIN`) | `walking.py` |
-| 코스 | 3~5곳. 기준 장소는 반드시 포함하고 **위치는 상관없음**(처음·중간·끝) | `recommend._search_paths` |
-| 개수 | 최대 3개를 서로 다르게 고름(겹치는 장소 1곳 → 2곳 순으로 완화) | `recommend.recommend` |
-| 다시 추천 | `exclude_signatures`에 있는 코스는 다시 내지 않음 | `recommend.recommend` |
-| 지역 | 지원 지역 6곳(연남·서촌·혜화·잠실·성신여대역·한성대입구역). **자동으로 넓히지 않음** | `regions.py` |
-| 후보 | 내 보관함 + 공동 보관함(저장 가산점) + 외부 추천(네이버 지역검색 "지역명 + 업종") 최대 30곳 | `recommend.gather_candidates` |
-| 운영시간 | 데이터가 없으면 "방문 전에 운영시간을 확인해주세요." (추천 필터에는 쓰지 않음) | `domain.HOURS_NOTICE` |
-| 항목 | 코스마다 따로 관리. 금액은 2인 합계. 체크한 것만 확인된 금액에 더함. 순서를 바꾸면 유지, 교체·삭제하면 삭제 | `domain.py` |
-| 하트 | 하트 = SavedPlace가 있는지 여부. 하트를 꺼도 코스 안 장소는 그대로 | `repo.py` |
-| 메모 | 작성자 본인만 조회 | `repo.get_memo` |
-| 동시 수정 | 저장할 때마다 `version`+1. 다르면 409 | `repo.save_course` |
-| 개인정보 | 추출 단계에서 개인 전화·이메일·@계정·주민번호 형태를 저장하지 않음 | `placeflow/normalize.py` |
+| 범위 | 기준 반경 1,000m (`ANCHOR_RADIUS_M`), 장소 사이 도보 10분 이하 (`MAX_LEG_MIN`) | `walking.py` |
+| 코스 | 3~5곳. 기준 장소는 반드시 포함하고 **위치는 상관없음**(처음·중간·끝) | `_search_paths` |
+| 개수 | 최대 3개를 서로 다르게 고른다(겹치는 장소 1곳 → 2곳 순으로 완화) | `recommend` |
+| 다시 추천 | `exclude_signatures`에 있는 코스는 다시 내지 않는다 | `recommend` |
+| 지역 | 지원 지역 6곳. **자동으로 넓히지 않는다** | `regions.py` |
+| 후보 | 내·공동 보관함(저장 가산점) + 외부 추천(네이버 지역검색 "지역명 + 업종", 최대 30곳). 같은 이름이 80m 안에 있으면 저장 장소로 본다 | `gather_candidates` |
+| 점수 | 업종 다양성(최대 4종), 같은 업종 연속 감점, 식당 2곳·술집 1곳 초과 감점, 식당이나 카페 포함 가점, 도보 시간 감점, 4곳 코스 가점 | `_path_score` |
+| 운영시간 | 데이터가 없으면 "방문 전에 운영시간을 확인해주세요."를 표시한다. 추천 필터에는 쓰지 않는다 | `domain.HOURS_NOTICE` |
 
 ---
 
-## 6. Python 함수 레퍼런스 (백엔드 import용)
-
-### 6.1 조립
+## 6. Python 함수 레퍼런스 (방법 B: 백엔드에서 직접 import)
 
 ```python
-from placeflow.v3.repo import JsonRepo                  # 실서비스는 같은 메서드의 DB 구현체로 교체
-from placeflow.v3.search import get_search_provider     # "auto" | "naver" | "demo" | "demo_fail"
-from placeflow.v3.service import OneClickMeetService
-from placeflow.cli import build_pipeline                # 링크·스크린샷 추출
+# 0) FastAPI 백엔드 앱에 AI 엔드포인트를 그대로 붙이기 (HTTP 계약은 §4와 같음)
+from placeflow.ai_api import register
+register(backend_app)                    # backend_app 에 /ai/v1/* · /health · AI 에러 봉투(DomainError 등) 추가
+# register(backend_app, prefix="/internal/ai/v1", with_health=False)   # 경로·health 를 바꾸고 싶을 때
+# 요청 검증 오류(422)·전역 500 처리는 백엔드 앱의 기존 정책을 그대로 따른다(단독 AI 서버에서만 400 봉투로 바꿈)
 
-svc = OneClickMeetService(
-    repo=JsonRepo("data/v3.json"),
-    search=get_search_provider("auto"),                  # NAVER_CLIENT_ID/SECRET 이 있으면 네이버
-    pipeline_factory=lambda: build_pipeline("heuristic", None, "none", "auto"),  # (llm, model, geo, ocr)
-)
+# 장소 인식
+from placeflow.cli import build_pipeline                     # build_pipeline(llm, model, geo, ocr)
+from placeflow.v3.save_flow import candidates_from_records, search_candidates, match
 
-# FastAPI 예시
-@app.post("/api/v3/recommendations")
-def recommend(body: dict, user=Depends(current_user)):
-    try:
-        return {"ok": True, "data": svc.recommend(user.id, body["anchor"], body.get("exclude_signatures", []))}
-    except DomainError as e:
-        raise HTTPException(HTTP_OF.get(e.code, 422), {"ok": False, "error": {"code": e.code, "message": e.message}})
-```
-에러 매핑 표 `HTTP_OF`는 `placeflow/v3/api.py`에 있다.
+pipe = build_pipeline("heuristic", None, "none", "auto")      # LLM 없이 규칙 기반 + OCR(있으면)
+out = pipe.run(url_or_image_path, extra_text, more_images=None)  # → PipelineOutput(records, message, …)
+res = candidates_from_records(out.records, search, "link" | "screenshot",
+                              is_saved=lambda pid: pid in saved_ids, pipeline_message=out.message)  # → ResolveResult
+res = search_candidates(search, "잠실 카페", is_saved)          # 직접 검색 → ResolveResult
+match(name, branch, road_core, buildings, place, name_unsure=False)  # → ("exact"|"similar", score, reasons) | None
 
-### 6.2 서비스 (`placeflow/v3/service.py`) — 모든 반환값은 JSON 직렬화 가능한 dict
+# 코스 추천 (사용자 데이터는 인자로 받음: 저장소에 의존하지 않음)
+from placeflow.v3.recommend import RecommendRequest, recommend, replacement_candidates, nearby_places, signature_of
+recommend(RecommendRequest(anchor=..., exclude_signatures=[...]),
+          user_pool=[(Place, "mine"|"couple"), ...], search=search, anchor_place=Place | None)  # → RecommendResult
+replacement_candidates(course_places: list[Place], index, user_pool, search, limit=8)  # → list[Cand(place, source)]
+nearby_places(place, user_pool, search, limit=3)                                       # → list[Cand]
 
-```python
-class OneClickMeetService:
-    def home(user_id) -> dict
-    def regions(user_id) -> list[dict]
-    def resolve_place(user_id, kind, *, url=None, text=None, image_paths=None, query=None) -> dict  # ResolveResult
-    def save_place(user_id, place: dict, origin="search", source_url=None, share_with_couple=False) -> dict
-    def save_places(user_id, places: list[dict], origin="link", source_url=None, share_with_couple=False) -> dict
-    def unsave_place(user_id, place_id) -> dict
-    def list_saved(user_id, scope="personal") -> dict
-    def place_detail(user_id, place_id) -> dict
-    def set_memo(user_id, target_type, target_id, text) -> dict
-    def recommend_conditions(user_id, anchor: dict) -> dict
-    def recommend(user_id, anchor: dict, exclude_signatures=None) -> dict                            # RecommendResult
-    def replacement_candidates(user_id, place_ids: list[str], index: int) -> dict
-    def draft_from_recommendation(user_id, recommended: dict, anchor: dict) -> dict
-    def apply_op(user_id, course: dict, op: dict) -> dict
-    def save_course(user_id, course: dict, expected_version=None, memo=None) -> dict
-    def list_courses(user_id, scope="personal") -> dict
-    def get_course(user_id, course_id) -> dict
-    def delete_course(user_id, course_id) -> dict
-    def seed_demo(user_id, region_id="yeonnam", n=4) -> dict                                        # 실험 전용
-```
-규칙을 어기면 `DomainError(code, message)`가 발생한다.
+# 장소 검색
+from placeflow.v3.search import get_search_provider, NaverLocalSearch, DemoSearch, ExternalSearchError
+search = get_search_provider("auto")   # auto(키 있으면 네이버) | naver | demo | demo_fail
+search.search("잠실 카페", display=5)  # → list[Place], 실패 시 ExternalSearchError
 
-### 6.3 하위 모듈 (직접 써도 됨)
-
-```python
-# domain.py — 순수 함수. 입력 Course 를 바꾸지 않고 새 Course 를 반환
-reorder_stops(course, stop_ids) -> Course
-replace_stop(course, stop_id, place, external=False) -> Course
-remove_stop(course, stop_id) -> Course
-add_stop(course, place, index=None, external=False) -> Course
-add_item(course, stop_id, name, amount, checked=True, by=None) -> Course
-update_item(course, item_id, *, name=None, amount=None, checked=None, by=None) -> Course
-remove_item(course, item_id) -> Course
-validate_for_save(course) -> list[str]          # [] 이면 저장 가능
-summarize(course) -> CourseSummary
-
-# recommend.py
-recommend(req: RecommendRequest, user_pool: list[tuple[Place, "mine"|"couple"]], search, anchor_place=None) -> RecommendResult
-replacement_candidates(course_places: list[Place], index, user_pool, search, limit=8) -> list[Cand]
-nearby_places(place, user_pool, search, limit=3) -> list[Cand]
-to_course_draft(rec: RecommendedCourse, owner_id, anchor, title=None) -> Course
-signature_of(place_ids) -> str
-
-# save_flow.py
-search_candidates(search, query, is_saved=lambda pid: False) -> ResolveResult
-candidates_from_records(records: list[PlaceRecord], search, input_kind, is_saved=..., pipeline_message=None) -> ResolveResult  # groups[]
-match(name, branch, road_core, buildings, place, name_unsure=False) -> ("exact"|"similar", score, reasons) | None
-save_candidate(repo, owner_id, place, origin, source_url=None, share_with_couple=False) -> SavedPlace
-
-# search.py
-class SearchProvider(Protocol): name: str; def search(query, display=5) -> list[Place]
-NaverLocalSearch(client_id=None, client_secret=None, timeout=6.0, cache_ttl=6*3600)  # 실패 시 ExternalSearchError
-DemoSearch(fail=False)
-make_place_id(name, road_address, jibun=None) -> str
-
-# walking.py
-distance_m(a, b) -> float;  walk_minutes(a, b) -> int;  walkable(a, b, limit=10) -> bool
+# 보조
+from placeflow.v3.walking import distance_m, walk_minutes, walkable
+from placeflow.v3.regions import REGIONS, get_region, region_of
 ```
 
 ---
 
-## 7. 저장소 인터페이스 (DB로 바꿀 때 구현할 메서드)
-
-`JsonRepo`는 실험용이다. 실서비스는 아래 메서드를 같은 의미로 구현한 클래스를 `OneClickMeetService(repo=...)`에 넣는다.
-
-```python
-class Repo(Protocol):
-    def couple_members(user_id) -> list[str]            # 커플이면 [나, 상대], 아니면 [나]
-    def couple_id_of(user_id) -> str | None
-    def upsert_place(place: Place) -> Place              # 비어 있던 필드만 채움
-    def get_place(place_id) -> Place | None
-    def save_place(owner_id, place, origin, source_url, share_with_couple) -> SavedPlace   # 멱등
-    def unsave_place(owner_id, place_id) -> bool
-    def set_share(owner_id, place_id, shared) -> SavedPlace
-    def list_saved(user_id, scope) -> list[tuple[SavedPlace, Place]]   # 최신순
-    def is_saved(user_id, place_id) -> bool
-    def recommendation_pool(user_id) -> list[tuple[Place, "mine"|"couple"]]
-    def set_memo(owner_id, target_type, target_id, text) -> PrivateMemo  # 빈 text = 삭제
-    def get_memo(owner_id, target_type, target_id) -> PrivateMemo | None
-    def save_course(course, expected_version=None) -> Course            # version+1, 불일치 시 DomainError("version_conflict")
-    def get_course(course_id) -> Course | None
-    def list_courses(user_id, scope) -> list[Course]
-    def delete_course(course_id) -> bool
-```
-
-권장 테이블 (RDB):
-
-| 테이블 | 키 / 주요 컬럼 |
-|---|---|
-| `places` | `place_id` PK, name, category, sub_category, lat, lng, road_address, opening_hours(JSON), provider |
-| `saved_places` | `saved_id` PK, **UNIQUE(owner_id, place_id)**, origin, source_url, shared_with_couple, saved_at |
-| `memos` | **PK(owner_id, target_type, target_id)**, text |
-| `courses` | `course_id` PK, owner_id, scope, couple_id, title, anchor(JSON), version, timestamps |
-| `course_stops` | `stop_id` PK, course_id FK, ord, place_id FK, is_anchor, external |
-| `course_items` | `item_id` PK, course_id FK, stop_id FK (**ON DELETE CASCADE**), name, amount, checked, updated_by |
-
-코스를 저장할 때는 `UPDATE courses SET version=version+1 WHERE course_id=? AND version=?`를 실행한다. 바뀐 행이 0개면 409를 돌려준다.
-
----
-
-## 8. 환경 변수
+## 7. 환경 변수
 
 | 이름 | 용도 | 필수 |
 |---|---|---|
 | `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` | 네이버 지역검색 키. **NAVER API HUB**(네이버 클라우드 플랫폼 콘솔 › NAVER API HUB › Application › 인증 정보)에서 발급. 현재 무료 기간, 검색 API 하루 25,000건 | 실서비스 필수. 없으면 데모 데이터 사용 |
-| `NAVER_SEARCH_ENDPOINT` | `hub`(기본, `naverapihub.apigw.ntruss.com/search/v1/local`, 헤더 `X-NCP-APIGW-API-KEY-ID`/`X-NCP-APIGW-API-KEY`) 또는 `legacy`(개발자센터 기존 키, 2027-06-30까지) | 선택 |
-| `PLACEFLOW_V3_DB` | 실험 저장 파일 경로 (기본 `data/v3.json`) | 선택 |
-| `OPENAI_API_KEY` 등 | 링크·스크린샷 정보 보강(LLM). 없어도 규칙 기반·OCR로 동작 | 선택 |
+| `NAVER_SEARCH_ENDPOINT` | `hub`(기본) 또는 `legacy`(개발자센터 기존 키, 2027-06-30까지) | 선택 |
+| `OPENAI_API_KEY` · `ANTHROPIC_API_KEY` · `GEMINI_API_KEY` | 링크·스크린샷 정보 보강(LLM). 없어도 규칙 기반·OCR로 동작 | 선택 |
 | `PLACEFLOW_LLM_MODEL` | LLM 모델 이름 | LLM을 쓸 때 |
+| `TESSDATA_PREFIX` | Tesseract 언어 데이터 위치 (기본 위치가 아닐 때) | 선택 |
+| `AI_SERVICE_KEY` | 설정하면 `/ai/v1/*`에 `X-AI-Key` 헤더 필수 | 배포 시 권장 |
+| `AI_SEARCH_PROVIDER` | `auto`(기본, 키 있으면 네이버) · `naver` · `demo` · `demo_fail` | 선택 |
+| `AI_LLM` · `AI_LLM_MODEL` | 추출기 `heuristic`(기본) · `openai` · `anthropic` · `gemini` / 모델 이름 | 선택 |
+| `AI_OCR` | `auto`(기본) · `tesseract` · `none` | 선택 |
+| `AI_OCR_CONCURRENCY` | 스크린샷 동시 처리 수 (기본 2) | 선택 |
+| `AI_MAX_IMAGE_MB` | 이미지 장당 최대 크기 (기본 10) | 선택 |
+| `AI_CORS_ORIGINS` | 쉼표로 구분한 허용 출처. 기본은 끔(백엔드끼리만 호출) | 선택 |
 
 `.env`는 커밋하지 않는다.
 
 ---
 
-## 9. 테스트 · 확인
+## 8. 테스트
 
 ```bash
-python3 -m pytest -q tests/test_v3.py      # V3 도메인·추천·저장 흐름·HTTP 엔드포인트 (네트워크 불필요)
-python3 -m placeflow serve                 # http://127.0.0.1:8000  → 마이 › 데모 보관함 채우기
+python3 -m pip install -r requirements-api.txt
+python3 -m pytest -q tests/test_v3.py tests/test_ai_api.py   # AI 로직 + FastAPI 계약 (네트워크 불필요, 네이버는 가짜 검색)
+python3 -m placeflow api --port 8001                         # → http://127.0.0.1:8001/docs 에서 직접 호출해 보기
 ```
+실제 사례 테스트 데이터: `tests/fixtures/ig_jamsil_4places.txt` (인스타 '잠실 가성비 맛집 4곳' 캡션)
 
 ---
 
-## 10. 미정(TBD) · 주의
+## 9. 미정(TBD) · 주의
 
-- **네이버 지역검색 실제 호출은 키가 없는 환경에서 검증하지 못했다.** 응답 파싱(`mapx/mapy` = WGS84, ×1e7 정수면 자동 환산, `<b>` 태그 제거)은 공개 문서 기준이다. HUB 응답의 `telephone`은 항상 빈 값이다. 키를 넣은 뒤 마이 › 검색 "네이버"로 확인한다.
-- 지원 지역 6곳의 중심 좌표와 반경(`regions.py`)은 **근사값**이다. 기획에서 확정한 경계로 교체해야 한다.
-- 네이버 결과에는 고유 ID가 없어서 `place_id`를 이름과 주소의 해시로 만든다. 가게가 이전하거나 이름을 바꾸면 다른 장소로 잡힌다.
-- 커플 연결(초대·수락) API는 이 범위 밖이다. 저장소에는 `couples` 최소 구조만 있다.
-- 실험 서버의 `X-User-Id`, `/settings`, `/dev/*`는 실서비스에 만들지 않는다.
+- **네이버 지역검색은 실제 키로 호출해 확인하지 못했다.** 응답 파싱은 공개 문서 기준이다(`mapx/mapy` = WGS84, ×1e7 정수면 자동 환산, `<b>` 태그 제거).
+- 지원 지역 6곳의 중심 좌표·반경(`regions.py`)은 **근사값**이다. 기획에서 확정한 경계로 바꿔야 한다.
+- `place_id`가 이름+주소 해시라서 가게가 이전하거나 이름을 바꾸면 다른 장소로 잡힌다.
+- OCR 품질은 Tesseract 버전과 한국어 데이터에 따라 달라진다. AI 서버를 배포하는 서버에도 `tesseract` + 한국어 데이터(`kor`)를 설치해야 스크린샷을 처리할 수 있다.
+- 실험 서버(`python -m placeflow serve`)의 `/api/v3/*`는 실험 화면 전용이다. 백엔드 연동에는 `/ai/v1/*`를 쓴다.

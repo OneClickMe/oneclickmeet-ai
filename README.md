@@ -19,7 +19,8 @@
 - 코스 추천: **기준 장소(또는 지원 지역 6곳) 반경 1km, 도보만, 장소 사이 10분 이내, 3~5곳 코스 3개**를 만듭니다. 기준 장소는 코스 어디에 들어가도 됩니다.
 - 코스 상세: 항목·금액(2인 합계)을 적고, 편집(순서 바꾸기·교체·삭제·추가)한 뒤 저장합니다.
 - 백엔드·프론트 연결 규약: **[docs/API_CONVENTION.md](docs/API_CONVENTION.md)**
-- 코드: `placeflow/v3/` (service · api · domain · recommend · save_flow · search · repo · walking · regions)
+- 코드: AI 로직 `placeflow/v3/` · AI 서버(FastAPI) `placeflow/ai_api/`
+- 백엔드 연결: **상태 없는 AI 서버** `/ai/v1/*` — 백엔드가 사용자 데이터를 요청에 담아 보내고, AI 는 결과만 돌려줍니다(저장 안 함).
 - 외부 장소 검색: 네이버 지역검색 — NAVER API HUB 키(`NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET`). 키가 없으면 가상 데모 데이터를 씁니다.
 
 ## 버전 기록
@@ -43,6 +44,11 @@
   - 네이버 지도 앱의 '공유 → 복사' 문구 전체를 붙여넣을 수 있습니다.
   - robots.txt 로 막힌 링크는 "HTTP 451" 대신 사유와 다음 방법을 안내합니다.
 - **네이버 지역검색**: NAVER API HUB(2026-07-31 이후 신규 키 발급처)를 기본으로 씁니다. 개발자센터 기존 키는 `NAVER_SEARCH_ENDPOINT=legacy`로 쓸 수 있습니다.
+- **AI 서버(FastAPI)**
+  - 상태 없는 `/ai/v1` API를 만들었습니다: 장소 인식(링크·캡션 JSON, 스크린샷 multipart), 직접 검색, 도보 코스 추천, 교체 후보, 주변 놀거리, 지원 지역, `/health`.
+  - Swagger(`/docs`)와 `docs/openapi.json`을 제공하고, `X-AI-Key` 인증을 지원합니다.
+  - 백엔드 FastAPI 앱에 `register(app)` 한 줄로 붙일 수도 있습니다.
+- `docs/API_CONVENTION.md`는 AI 기능만 다루도록 정리했습니다. 보관함·코스 CRUD는 백엔드 소관입니다.
 
 ### v1.0 — Figma 와이어프레임 V3 기준 장소 저장·도보 코스 추천
 - **후보 확인 저장**: 링크·스크린샷·직접 검색으로 후보를 찾아 확인한 뒤 저장합니다. 하트(저장/해제), 공동 보관함 공유 토글, 내 메모(본인만 조회)를 지원합니다.
@@ -85,6 +91,16 @@ python -m placeflow extract "📍카페 온담 성수점 서울 성동구 서울
 python -m placeflow extract https://blog.naver.com/fakeblog/220000000002 \
   --fixtures eval/fixtures/pages --geo fixture --trace
 ```
+
+## AI 서버 실행 (FastAPI · 백엔드 연동용)
+```bash
+python3 -m pip install -r requirements-api.txt     # fastapi · uvicorn · python-multipart
+python3 -m placeflow api --port 8001               # → http://127.0.0.1:8001/docs (Swagger)
+# 배포: uvicorn placeflow.ai_api.main:app --host 0.0.0.0 --port 8001   (AI_SERVICE_KEY 설정 권장)
+```
+- 엔드포인트·요청 모양·에러 코드: [docs/API_CONVENTION.md](docs/API_CONVENTION.md) §4, 명세 파일 [docs/openapi.json](docs/openapi.json)
+- 백엔드가 Python(FastAPI)이면 같은 프로세스에 붙일 수 있습니다: `from placeflow.ai_api import register; register(backend_app)`
+- 스크린샷을 처리하려면 서버에 `tesseract` + 한국어 데이터가 있어야 합니다(아래).
 
 ## 무료 OCR 설치 (캡쳐 읽기)
 ```bash
@@ -170,6 +186,7 @@ placeflow/
   ocr.py           Tesseract(다중 전처리·결과 병합) / 사이드카 OCR
   server.py        실험용 로컬 웹 서버 (python -m placeflow serve)
   web/index.html   v1 실험 화면   ·  web/legacy.html  v0.2 화면
+  ai_api/          AI 서버 (FastAPI, /ai/v1) — main.py(앱·register·에러 봉투) · schemas.py · deps.py(설정·인증) · routers/
   v3/              v1 워크플로우 (폴더 이름은 Figma 와이어프레임 V3 기준이라는 뜻)
     service.py     화면 단위 서비스 (백엔드가 import 해서 쓰는 진입점)
     api.py         /api/v3/* 라우터 · 응답 봉투 · 에러 코드
