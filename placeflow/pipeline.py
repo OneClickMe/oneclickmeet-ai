@@ -38,6 +38,7 @@ class Pipeline:
     ocr: object | None = None
     http: HttpClient = field(default_factory=UrllibClient)
     config: PipelineConfig = field(default_factory=PipelineConfig)
+    link_body: bool = False  # TRD: 링크는 메타 정보만. True 는 평가·예전 화면(/legacy) 전용
 
     def __post_init__(self):
         self._schema = inline_refs(ExtractionResult.model_json_schema())
@@ -60,7 +61,7 @@ class Pipeline:
         title, body = "", ""
         source = SourceInfo(type=r.source_type, input_kind=r.kind)
         if r.kind == "link":
-            fc: FetchedContent = fetch_link(r, self.http)
+            fc: FetchedContent = fetch_link(r, self.http, body=self.link_body)
             source.url, source.final_url, source.fetch_status = fc.url, fc.final_url, fc.status
             if fc.source_type != r.source_type:  # 단축 링크가 풀린 경우
                 source.type = fc.source_type

@@ -1,29 +1,46 @@
-# placeflow — OneClickMeet AI 워크플로우 v1.1
+# placeflow — OneClickMeet AI 워크플로우 v2.0
 
 20대 커플이 인스타그램·네이버에서 본 장소를 **링크·스크린샷·직접 검색**으로 저장하고,
 저장한 장소를 기준으로 **걸어서 다니는 데이트 코스**를 추천하는 AI 워크플로우입니다.
-유료 데이터 API 없이 동작합니다(robots.txt 를 지키는 링크 크롤링 + 무료 OCR + 네이버 지역검색 무료 키). LLM 은 선택 사항입니다.
+유료 데이터 API 없이 동작합니다(링크 메타 정보 + 무료 OCR + 카카오 로컬 또는 네이버 지역검색 무료 키). LLM 은 선택 사항입니다.
 
-> **버전 표기:** 이 저장소의 버전(**v1.x**)은 **AI 워크플로우 버전**입니다.
+> **버전 표기:** 이 저장소의 버전(**v1.x · v2.x**)은 **AI 워크플로우 버전**입니다.
 > 코드·문서에 나오는 "V3"는 기준으로 삼은 **Figma 와이어프레임 버전**(`와이어프레임(mid-fi) › V3 - 재원` 확정 IA)을 가리킵니다.
 > 그래서 코드 폴더 이름이 `placeflow/v3/` 입니다. 워크플로우 버전과는 별개입니다.
+> 서비스 전체 설계 기준은 팀 TRD v1.0(2026-10-18)입니다: React Native → **Spring Boot** → FastAPI(AI 내부 서비스).
 
-## v1 워크플로우 한눈에 보기
+## v2 워크플로우 한눈에 보기
 ```
-저장   링크·스크린샷·캡션 → 판별 → 수집(크롤링·OCR) → 장소 추출(이름·주소·분류)
-       → 네이버 지역검색으로 후보 찾기(장소별 묶음, 확실한 일치/비슷한 이름 구분) → 사용자가 확인 → 보관함 저장
-추천   기준(저장한 장소 또는 지원 지역 6곳) → 반경 1km 후보(내·공동 보관함 + 외부 추천)
-       → 도보 10분 이내로 잇기 → 3~5곳 코스 3개(서로 다르게) → 코스 상세(항목·2인 금액)·편집·저장
+저장   링크(메타 정보)·공유 텍스트·스크린샷 → 장소 추출(이름·주소·분류)
+       → 장소 검색으로 후보 찾기(장소별 묶음, 확실한 일치/비슷한 이름 구분) → 사용자가 확인 → Spring 이 저장
+추천   기준(필수 장소 1곳 + 방문 위치, 또는 지원 지역) + 장소 수 3~5 + 방문 순서별 카테고리
+       → 반경 1km 후보(저장 장소 + 외부 후보) → 자리마다 지정 카테고리, 이웃 도보 10분 이내 → 코스 1~3개
 ```
-- 장소 저장: 링크·스크린샷·직접 검색으로 찾은 **후보를 확인한 뒤** 보관함에 저장합니다.
-- 코스 추천: **기준 장소(또는 지원 지역 6곳) 반경 1km, 도보만, 장소 사이 10분 이내, 3~5곳 코스 3개**를 만듭니다. 기준 장소는 코스 어디에 들어가도 됩니다.
-- 코스 상세: 항목·금액(2인 합계)을 적고, 편집(순서 바꾸기·교체·삭제·추가)한 뒤 저장합니다.
-- 백엔드·프론트 연결 규약: **[docs/API_CONVENTION.md](docs/API_CONVENTION.md)**
-- 코드: AI 로직 `placeflow/v3/` · AI 서버(FastAPI) `placeflow/ai_api/`
-- 백엔드 연결: **상태 없는 AI 서버** `/ai/v1/*` — 백엔드가 사용자 데이터를 요청에 담아 보내고, AI 는 결과만 돌려줍니다(저장 안 함).
-- 외부 장소 검색: 네이버 지역검색 — NAVER API HUB 키(`NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET`). 키가 없으면 가상 데모 데이터를 씁니다.
+- 연결: **상태 없는 AI 내부 API** `/internal/v1/*` (camelCase · ProblemDetail). Spring 이 저장 장소를 요청에 담아 보내고, AI 는 결과만 돌려줍니다. → **[docs/API_CONVENTION.md](docs/API_CONVENTION.md)**
+- 카테고리 코드 7개: `MEAL` · `CAFE` · `BAR` · `ACTIVITY` · `CULTURE` · `WALK` · `SHOPPING`
+- 장소 검색: `SEARCH_PROVIDER=kakao`(카카오 로컬, 좌표 검색 지원) 또는 `naver`(네이버 지역검색). 하나만 씁니다. 키가 없으면 가상 데모 데이터.
+- 코드: AI 로직 `placeflow/v3/` · AI 내부 서버(FastAPI) `placeflow/ai_api/`
 
 ## 버전 기록
+
+### v2.0 (2026-10-20) — TRD v1.0 반영
+- **AI 내부 API를 TRD 형식으로**
+  - 경로는 `/internal/v1`이고, P01·P02·P03·P04·R01 짝을 맞췄습니다.
+  - JSON camelCase, 성공 DTO 직접 반환, 오류는 `application/problem+json`(`code`·`reason`)입니다.
+  - 인식 상태는 `CANDIDATES_FOUND` / `NEEDS_SEARCH`이고, 외부 장애는 503입니다.
+  - 이미지는 JPEG·PNG·WebP, 5MiB입니다(413·415). `image` 1장 필수에 `extraImages` 4장까지 받습니다.
+- **추천 엔진 v2 (R01)**
+  - 입력: `placeCount`(3~5), 방문 순서별 `categorySequence`, 필수 장소 위치 `requiredPlaceOrder`
+  - 자리 채우기 방식으로 코스 1~3개를 만들고 `title`·`walkingLegs`·`reason`을 붙입니다.
+  - 필수 장소는 카테고리가 달라도 지정 위치에 둡니다.
+  - 결과 장소에 `placeId`·`source`(PERSONAL·SHARED·EXTERNAL)를 돌려줍니다.
+- **카테고리 7개 코드**를 추가했습니다. 카테고리가 없는 저장 장소는 검색으로 추론합니다(TRD의 DB에 카테고리 필드가 없어서).
+- **카카오 로컬 검색**을 추가했습니다(키워드·좌표·카테고리 그룹). `SEARCH_PROVIDER`로 카카오·네이버 중 하나를 고르고, 네이버는 좌표 대신 가까운 지원 지역명으로 우회합니다.
+- **P02 좌표 기반 후보 검색**을 만들었습니다(주변 놀거리·교체 후보용). 교체 전용 확장 API도 있습니다.
+- **링크는 메타 정보(og:title·og:description)만** 읽습니다(TRD: 본문 크롤링·가격·메뉴 수집 안 함). 본문 읽기는 평가·`/legacy` 전용 코드 옵션으로만 남겼습니다.
+- 지역 ID를 TRD 형식(`JAMSIL` 등)으로 바꿨습니다.
+- 실험 화면: 장소 수·방문 순서별 카테고리·기준 장소 위치를 고르는 화면을 추가했습니다.
+- Spring Boot 백엔드 기준이라 Python 직접 연결(`register`)은 뺐습니다.
 
 ### v1.1 (2026-10-16) — 링크 하나에 장소 여러 곳 · 후보 오인 방지 · OCR 개선
 - **장소별 묶음 후보**
@@ -44,10 +61,7 @@
   - 네이버 지도 앱의 '공유 → 복사' 문구 전체를 붙여넣을 수 있습니다.
   - robots.txt 로 막힌 링크는 "HTTP 451" 대신 사유와 다음 방법을 안내합니다.
 - **네이버 지역검색**: NAVER API HUB(2026-07-31 이후 신규 키 발급처)를 기본으로 씁니다. 개발자센터 기존 키는 `NAVER_SEARCH_ENDPOINT=legacy`로 쓸 수 있습니다.
-- **AI 서버(FastAPI)**
-  - 상태 없는 `/ai/v1` API를 만들었습니다: 장소 인식(링크·캡션 JSON, 스크린샷 multipart), 직접 검색, 도보 코스 추천, 교체 후보, 주변 놀거리, 지원 지역, `/health`.
-  - Swagger(`/docs`)와 `docs/openapi.json`을 제공하고, `X-AI-Key` 인증을 지원합니다.
-  - 백엔드 FastAPI 앱에 `register(app)` 한 줄로 붙일 수도 있습니다.
+- **AI 서버(FastAPI)**: 상태 없는 `/ai/v1` API를 처음 만들었습니다(v2.0에서 `/internal/v1` TRD 형식으로 바뀜).
 - `docs/API_CONVENTION.md`는 AI 기능만 다루도록 정리했습니다. 보관함·코스 CRUD는 백엔드 소관입니다.
 
 ### v1.0 — Figma 와이어프레임 V3 기준 장소 저장·도보 코스 추천
@@ -92,14 +106,14 @@ python -m placeflow extract https://blog.naver.com/fakeblog/220000000002 \
   --fixtures eval/fixtures/pages --geo fixture --trace
 ```
 
-## AI 서버 실행 (FastAPI · 백엔드 연동용)
+## AI 내부 서버 실행 (FastAPI · Spring Boot 연동용)
 ```bash
 python3 -m pip install -r requirements-api.txt     # fastapi · uvicorn · python-multipart
 python3 -m placeflow api --port 8001               # → http://127.0.0.1:8001/docs (Swagger)
 # 배포: uvicorn placeflow.ai_api.main:app --host 0.0.0.0 --port 8001   (AI_SERVICE_KEY 설정 권장)
 ```
-- 엔드포인트·요청 모양·에러 코드: [docs/API_CONVENTION.md](docs/API_CONVENTION.md) §4, 명세 파일 [docs/openapi.json](docs/openapi.json)
-- 백엔드가 Python(FastAPI)이면 같은 프로세스에 붙일 수 있습니다: `from placeflow.ai_api import register; register(backend_app)`
+- 엔드포인트·DTO·오류 코드: [docs/API_CONVENTION.md](docs/API_CONVENTION.md), 명세 파일 [docs/openapi.json](docs/openapi.json)
+- 장소 검색: `.env`에 `SEARCH_PROVIDER=kakao` + `KAKAO_REST_API_KEY` (또는 `naver` + 네이버 키)
 - 스크린샷을 처리하려면 서버에 `tesseract` + 한국어 데이터가 있어야 합니다(아래).
 
 ## 무료 OCR 설치 (캡쳐 읽기)
@@ -186,20 +200,27 @@ placeflow/
   ocr.py           Tesseract(다중 전처리·결과 병합) / 사이드카 OCR
   server.py        실험용 로컬 웹 서버 (python -m placeflow serve)
   web/index.html   v1 실험 화면   ·  web/legacy.html  v0.2 화면
-  ai_api/          AI 서버 (FastAPI, /ai/v1) — main.py(앱·register·에러 봉투) · schemas.py · deps.py(설정·인증) · routers/
+  ai_api/          AI 내부 서버 (FastAPI, /internal/v1) — main.py · schemas.py(camelCase DTO) · convert.py · errors.py(ProblemDetail) · deps.py · routers/
   v3/              v1 워크플로우 (폴더 이름은 Figma 와이어프레임 V3 기준이라는 뜻)
     service.py     화면 단위 서비스 (백엔드가 import 해서 쓰는 진입점)
     api.py         /api/v3/* 라우터 · 응답 봉투 · 에러 코드
     save_flow.py   후보 찾기 (장소별 묶음 · 확실한 일치/비슷한 이름 판정)
-    recommend.py   도보 코스 추천 · 교체 후보 · 주변 놀거리
+    recommend.py   추천 엔진 v2 (카테고리 순서·필수 장소 위치) · 교체 후보 · 주변 놀거리
     domain.py      코스·항목 모델과 편집·검증·요약 순수 함수
-    search.py      네이버 지역검색(API HUB / 기존 키) · 데모 검색
+    search.py      카카오 로컬 · 네이버 지역검색(API HUB / 기존 키) · 데모 검색 (SEARCH_PROVIDER)
     repo.py        실험용 JSON 저장소 (DB 구현 시 같은 메서드로 교체)
+    categories.py  카테고리 코드 7개 · category_infer.py  저장 장소 카테고리 추론
     walking.py     도보 시간 추정 · regions.py  지원 지역 6곳
 eval/              평가 정답셋(가상 데이터) · 픽스처 생성기 · 평가 스크립트 · heldout/(검증용 별도 케이스)
 schema/            내보낸 JSON Schema · 택소노미 · 예시
 tests/             pytest (fixtures/ 실제 캡션 사례)
 ```
+
+## 알려진 한계 (v2.0)
+- 카카오·네이버 실제 키로는 개발 환경에서 호출을 확인하지 못했습니다. 응답 파싱은 공개 문서 기준이고, 테스트는 가짜 HTTP 응답으로 했습니다.
+- 저장 장소 카테고리 추론은 검색 품질에 좌우됩니다. DB에 카테고리를 저장하면 더 정확합니다.
+- 링크는 메타 정보만 읽어서, 블로그 링크만 넣으면 장소를 못 찾는 경우가 늘어납니다. 이때는 공유 문구나 캡션을 붙여넣으면 됩니다.
+- `(확장)` 필드(묶음 `groups`, `placeId`·`source`, `excludeCandidateKeys`, 교체 API 등)는 TRD 초안에 없는 제안이라 서버 담당과 합의가 필요합니다.
 
 ## 알려진 한계 (v1.1)
 - 네이버 지역검색은 **실제 키로 호출해 확인하지 못했습니다**(개발 환경의 네트워크 제한). 주소 기반 후보 찾기와 장소별 묶음은 가짜 검색 결과로 검증했습니다.

@@ -13,10 +13,12 @@ from .domain import (Anchor, Course, DomainError, Place, add_item, add_stop, rem
                      replace_stop, summarize, update_item, validate_for_save)
 from .recommend import (RecommendedCourse, RecommendRequest, nearby_places, recommend, replacement_candidates,
                         to_course_draft)
+from .categories import CODES, LABELS
+from .category_infer import infer_category
 from .regions import REGIONS, get_region
 from .repo import JsonRepo
 from .save_flow import candidates_from_records, save_candidate, search_candidates
-from .search import SearchProvider
+from .search import ExternalSearchError, SearchProvider
 from .walking import distance_m
 
 
@@ -148,11 +150,29 @@ class OneClickMeetService:
         return self.repo.set_memo(user_id, target_type, target_id, text).model_dump(mode="json")
 
     # ============================================================ 추천
-    def recommend(self, user_id: str, anchor: dict, exclude_signatures: Optional[list[str]] = None) -> dict:
+    def recommend(self, user_id: str, anchor: dict, place_count: int, category_sequence: list[str],
+                  required_place_order: Optional[int] = None, exclude_keys: Optional[list[str]] = None) -> dict:
+        """코스 추천 (R01). 실험 화면용: 외부 검색 실패는 reason=EXTERNAL_API_FAILED 로 돌려줌 (AI 서버는 503)."""
         a = Anchor.model_validate(anchor)
         anchor_place = self.repo.get_place(a.place_id) if a.type == "place" and a.place_id else None
-        req = RecommendRequest(anchor=a, exclude_signatures=exclude_signatures or [])
-        return recommend(req, self.repo.recommendation_pool(user_id), self.search, anchor_place).model_dump(mode="json")
+        if anchor_place is not None:
+            anchor_place = infer_category(anchor_place, self.search)
+        req = RecommendRequest(anchor=a, place_count=place_count, category_sequence=category_sequence,
+                               required_place_order=required_place_order if a.type == "place" else None,
+                               exclude_keys=exclude_keys or [])
+        try:
+            pool = [(infer_category(p, self.search), src) for p, src in self.repo.recommendation_pool(user_id)]
+            res = recommend(req, pool, self.search, anchor_place)
+        except ExternalSearchError as e:
+            return {"courses": [], "reason": "EXTERNAL_API_FAILED", "walking_time_method": "COORDINATE_ESTIMATE",
+                    "region": None, "candidates_count": 0, "steps": [],
+                    "message": f"주변 장소를 불러오지 못했어요. 이번에는 코스를 만들지 않아요. ({e})"}
+        return res.model_dump(mode="json")
+
+    @staticmethod
+    def categories() -> list[dict]:
+        """추천 카테고리 코드 7개 (화면의 카테고리 순서 선택용)."""
+        return [{"code": c, "label": LABELS[c]} for c in CODES]
 
     def recommend_conditions(self, user_id: str, anchor: dict) -> dict:
         """추천 조건 확인 화면 문구."""
@@ -163,8 +183,12 @@ class OneClickMeetService:
         else:
             r = get_region(a.region_id or "")
             base = {"label": "기준 지역", "value": r.name if r else None, "note": "이 지역 안에서 찾아요"}
-        return {"anchor": base, "rules": ["도보로 걷는 데이트 코스예요", "기준 장소 반경 약 1km 안에서 찾아요",
-                                          "장소 사이는 걸어서 10분 이내예요", "코스 1개는 장소 3~5곳이에요"]}
+        if a.type == "place" and p is not None:
+            p = infer_category(p, self.search)
+            base["category_code"] = p.category_code
+        return {"anchor": base, "categories": self.categories(),
+                "rules": ["도보로 걷는 데이트 코스예요", "기준 반경 약 1km 안에서 찾아요",
+                          "장소 사이는 걸어서 10분 이내예요 (좌표로 추정한 시간)", "장소 수와 방문 순서별 카테고리를 골라요 (3~5곳)"]}
 
     def replacement_candidates(self, user_id: str, place_ids: list[str], index: int) -> dict:
         places = [self.repo.get_place(pid) for pid in place_ids]
@@ -177,7 +201,7 @@ class OneClickMeetService:
     def draft_from_recommendation(self, user_id: str, recommended: dict, anchor: dict) -> dict:
         """'이 코스 선택' → 코스 상세 드래프트. 추천에 쓰인 장소는 Place 원본으로 등록(보관함 저장은 아님)."""
         rec = RecommendedCourse.model_validate(recommended)
-        for s in rec.stops:
+        for s in rec.places:
             self.repo.upsert_place(s.place)
         c = to_course_draft(rec, user_id, Anchor.model_validate(anchor))
         return self._course_payload(c, user_id)
@@ -250,7 +274,7 @@ class OneClickMeetService:
         return {"deleted": self.repo.delete_course(course_id)}
 
     # ============================================================ 실험용
-    def seed_demo(self, user_id: str, region_id: str = "yeonnam", n: int = 4) -> dict:
+    def seed_demo(self, user_id: str, region_id: str = "YEONNAM", n: int = 4) -> dict:
         """데모: 지역의 가상 장소 몇 곳을 내 보관함에 저장 (검색 제공자가 demo 일 때)."""
         r = get_region(region_id)
         if not r:

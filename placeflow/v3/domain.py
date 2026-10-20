@@ -65,7 +65,7 @@ class Place(BaseModel):
     lng: float
     phone: Optional[str] = None
     map_url: Optional[str] = None
-    provider: str = Field("naver_local", description="naver_local | demo | link")
+    provider: str = Field("naver_local", description="kakao_local | naver_local | demo | link")
     opening_hours: Optional[WeeklyHours] = None
 
     @property
@@ -79,6 +79,14 @@ class Place(BaseModel):
         if self.opening_hours and not self.opening_hours.partial:
             return hours_mod.summary(self.opening_hours)
         return HOURS_NOTICE
+
+    @computed_field
+    @property
+    def category_code(self) -> Optional[str]:
+        """코스 추천 카테고리 코드 (MEAL·CAFE·BAR·ACTIVITY·CULTURE·WALK·SHOPPING). 숙박·기타는 None."""
+        from .categories import code_of
+
+        return code_of(self.category)
 
     @computed_field
     @property

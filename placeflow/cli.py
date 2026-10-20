@@ -24,12 +24,15 @@ from .store import JsonlStore
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def build_pipeline(llm="heuristic", model=None, geo="none", ocr="none", fixtures=None, geo_fixture=None) -> Pipeline:
+def build_pipeline(llm="heuristic", model=None, geo="none", ocr="none", fixtures=None, geo_fixture=None,
+                   link_body: bool = False) -> Pipeline:
+    """link_body: 링크 본문까지 읽기 (TRD 상 기본 False — 평가·예전 화면 전용)."""
     return Pipeline(
         llm=get_provider(llm, model),
         geo=get_resolver(geo, geo_fixture),
         ocr=get_ocr(ocr),
         http=FixtureClient(fixtures) if fixtures else UrllibClient(),
+        link_body=link_body,
     )
 
 

@@ -1,7 +1,1 @@
-"""OneClickMeet AI 서버 (FastAPI). 단독 실행: placeflow.ai_api.main:app / 백엔드에 붙이기: register(app)."""
-
-
-def register(app, prefix: str = "/ai/v1", **kw):
-    from .main import register as _register
-
-    return _register(app, prefix, **kw)
+"""OneClickMeet AI 내부 서버 (FastAPI). 실행: python -m placeflow api / uvicorn placeflow.ai_api.main:app"""

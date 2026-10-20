@@ -16,24 +16,28 @@ from ..v3.domain import DomainError
 @dataclass(frozen=True)
 class Settings:
     api_key: Optional[str] = None                 # AI_SERVICE_KEY: 설정하면 X-AI-Key 헤더 필수
-    search: str = "auto"                          # AI_SEARCH_PROVIDER: auto | naver | demo | demo_fail
+    search: str = "auto"                          # SEARCH_PROVIDER: kakao | naver | demo | demo_fail (auto: 키 있는 것)
     llm: str = "heuristic"                        # AI_LLM: heuristic | openai | anthropic | gemini
     llm_model: Optional[str] = None               # AI_LLM_MODEL (없으면 PLACEFLOW_LLM_MODEL)
     ocr: str = "auto"                             # AI_OCR: auto | tesseract | none
     ocr_concurrency: int = 2                      # AI_OCR_CONCURRENCY: 동시에 돌릴 스크린샷 인식 수
-    max_image_mb: int = 10                        # AI_MAX_IMAGE_MB: 장당 최대 크기
+    max_image_mb: int = 5                         # AI_MAX_IMAGE_MB: 장당 최대 크기 (TRD 5MiB)
     cors_origins: tuple[str, ...] = field(default_factory=tuple)  # AI_CORS_ORIGINS: 쉼표 구분 (기본 끔)
+
+    @property
+    def max_image_bytes(self) -> int:
+        return self.max_image_mb * 1024 * 1024
 
     @classmethod
     def from_env(cls) -> "Settings":
         e = os.environ.get
         return cls(api_key=e("AI_SERVICE_KEY") or None,
-                   search=e("AI_SEARCH_PROVIDER", "auto"),
+                   search=e("SEARCH_PROVIDER") or e("AI_SEARCH_PROVIDER") or "auto",
                    llm=e("AI_LLM", "heuristic"),
                    llm_model=e("AI_LLM_MODEL") or e("PLACEFLOW_LLM_MODEL") or None,
                    ocr=e("AI_OCR", "auto"),
                    ocr_concurrency=max(1, int(e("AI_OCR_CONCURRENCY", "2"))),
-                   max_image_mb=max(1, int(e("AI_MAX_IMAGE_MB", "10"))),
+                   max_image_mb=max(1, int(e("AI_MAX_IMAGE_MB", "5"))),
                    cors_origins=tuple(o.strip() for o in e("AI_CORS_ORIGINS", "").split(",") if o.strip()))
 
 
@@ -79,12 +83,10 @@ def ocr_gate() -> threading.BoundedSemaphore:
     return _ocr_gate
 
 
-class Unauthorized(Exception):
-    pass
-
-
 def require_key(x_ai_key: Optional[str] = Header(None, alias="X-AI-Key",
-                                                  description="AI_SERVICE_KEY 를 설정한 경우 필수")) -> None:
+                                                  description="AI_SERVICE_KEY 를 설정한 경우 필수 (Spring → FastAPI 내부 인증)")) -> None:
+    from .errors import ApiProblem
+
     key = get_settings().api_key
     if key and not (x_ai_key and hmac.compare_digest(x_ai_key, key)):
-        raise Unauthorized()
+        raise ApiProblem(401, "AUTH-0401", "INVALID_SERVICE_KEY", "내부 서비스 키가 없거나 올바르지 않습니다.")
