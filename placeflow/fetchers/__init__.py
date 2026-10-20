@@ -1,4 +1,9 @@
-"""출처별 콘텐츠 수집. 결과는 모두 FetchedContent 로 통일합니다."""
+"""출처별 콘텐츠 수집. 결과는 모두 FetchedContent 로 통일합니다.
+
+TRD: 사이트 본문 크롤링·가격·메뉴 수집은 하지 않는다 → 기본은 **메타 정보(og:title·og:description)만** 읽는다.
+본문 읽기(body=True)는 평가 데이터·예전 실험 화면(/legacy)용 코드 옵션으로만 남기며 AI 서버·v1 화면에서는 켜지 않는다.
+robots.txt 준수·호스트당 1초 간격은 그대로.
+"""
 from __future__ import annotations
 
 import json
@@ -65,15 +70,15 @@ def _instagram(r: RoutedInput, client: HttpClient) -> FetchedContent:
     return FetchedContent(r.source_type, r.value, resp.final_url, "ok", title=title, text=caption, ids=r.ids)
 
 
-def _naver_blog(r: RoutedInput, client: HttpClient) -> FetchedContent:
+def _naver_blog(r: RoutedInput, client: HttpClient, body: bool = False) -> FetchedContent:
     resp = client.get(r.value)
     if resp.status != 200 or not resp.text:
         return FetchedContent(r.source_type, r.value, resp.final_url, "error", note=_http_note(resp.status))
     p = html_parse.parse(resp.text, root_class="se-main-container")
-    body = p["root_text"] or p["text"]
+    text = (p["root_text"] or p["text"])[:MAX_TEXT] if body else ""
     return FetchedContent(r.source_type, r.value, resp.final_url, "ok",
                           title=p["meta"].get("og:title", p["title"]),
-                          description=p["meta"].get("og:description", ""), text=body[:MAX_TEXT])
+                          description=p["meta"].get("og:description", ""), text=text)
 
 
 # 지도 SPA 가 돌려주는 공통 제목 — 상호명이 아니므로 버립니다.
@@ -151,7 +156,7 @@ def _apollo_place(html_text: str, pid: str | None) -> dict | None:
     }
 
 
-def _naver_place(r: RoutedInput, client: HttpClient) -> FetchedContent:
+def _naver_place(r: RoutedInput, client: HttpClient, body: bool = False) -> FetchedContent:
     """네이버 지도/플레이스 링크.
 
     지도 링크(map.naver.com)는 JS로 그려져 HTML 에 정보가 없으므로, place ID 로 플레이스 페이지를 직접 시도합니다.
@@ -169,7 +174,7 @@ def _naver_place(r: RoutedInput, client: HttpClient) -> FetchedContent:
         tried.append(f"{u.split('/')[2]}:{'robots.txt 금지' if resp.status == 451 else resp.status}")
         if resp.status != 200 or not resp.text:
             continue
-        info = _apollo_place(resp.text, pid)
+        info = _apollo_place(resp.text, pid) if body else None  # 내장 JSON(본문 정보)은 body 옵션일 때만
         p = html_parse.parse(resp.text)
         og_title = _clean_title(p["meta"].get("og:title") or p["title"])
         desc = p["meta"].get("og:description", "")
@@ -197,29 +202,28 @@ def _naver_place(r: RoutedInput, client: HttpClient) -> FetchedContent:
               "상호명을 메모에 적거나 플레이스 화면 캡쳐를 올려 주세요. [시도: " + ", ".join(tried) + "]"))
 
 
-def _generic(r: RoutedInput, client: HttpClient) -> FetchedContent:
+def _generic(r: RoutedInput, client: HttpClient, body: bool = False) -> FetchedContent:
     resp = client.get(r.value)
     if resp.status != 200 or not resp.text:
         return FetchedContent(r.source_type, r.value, resp.final_url, "error", note=_http_note(resp.status))
     p = html_parse.parse(resp.text)
     return FetchedContent(r.source_type, r.value, resp.final_url, "ok",
                           title=p["meta"].get("og:title", p["title"]),
-                          description=p["meta"].get("og:description", ""), text=p["text"][:MAX_TEXT])
+                          description=p["meta"].get("og:description", ""), text=p["text"][:MAX_TEXT] if body else "")
 
 
-def fetch_link(r: RoutedInput, client: HttpClient, _depth: int = 0) -> FetchedContent:
+def fetch_link(r: RoutedInput, client: HttpClient, _depth: int = 0, body: bool = False) -> FetchedContent:
+    """body=False(기본, TRD): 메타 정보만. body=True: 본문까지 (평가·예전 화면 전용)."""
     if r.source_type == SourceType.naver_short:
         resp = client.get(r.value)
         if _depth < 2 and resp.final_url and resp.final_url != r.value:
             again = route(resp.final_url, r.extra_text)
             if again.source_type != SourceType.naver_short:
-                fc = fetch_link(again, client, _depth + 1)
+                fc = fetch_link(again, client, _depth + 1, body)
                 fc.url = r.value
                 return fc
         return FetchedContent(r.source_type, r.value, resp.final_url, "error", note="단축 링크를 풀지 못했습니다.")
-    handler = {
-        SourceType.instagram_link: _instagram,
-        SourceType.naver_blog: _naver_blog,
-        SourceType.naver_place: _naver_place,
-    }.get(r.source_type, _generic)
-    return handler(r, client)
+    if r.source_type == SourceType.instagram_link:
+        return _instagram(r, client)  # og:description(캡션 요약)만 읽음
+    handler = {SourceType.naver_blog: _naver_blog, SourceType.naver_place: _naver_place}.get(r.source_type, _generic)
+    return handler(r, client, body)

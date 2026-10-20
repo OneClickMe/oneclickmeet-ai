@@ -1,6 +1,7 @@
 """V3 (Figma V3 기준) 장소 저장 · 도보 코스 추천 · 코스 편집 테스트. 네트워크 없이 DemoSearch 로 실행."""
 from __future__ import annotations
 
+import io
 import json
 import threading
 import urllib.error
@@ -9,13 +10,13 @@ import urllib.request
 import pytest
 
 from placeflow.v3 import api as v3api
-from placeflow.v3.domain import (Anchor, Course, CourseStop, DomainError, add_item, add_stop, remove_stop,
+from placeflow.v3.domain import (Anchor, Course, CourseStop, DomainError, Place, add_item, add_stop, remove_stop,
                                  reorder_stops, replace_stop, summarize, update_item, validate_for_save)
-from placeflow.v3.recommend import RecommendRequest, recommend, replacement_candidates, signature_of
+from placeflow.v3.recommend import RecommendRequest, candidate_key_of, recommend, replacement_candidates
 from placeflow.v3.regions import get_region, region_of
 from placeflow.v3.repo import JsonRepo
 from placeflow.v3.save_flow import candidates_from_records, search_candidates
-from placeflow.v3.search import DemoSearch, make_place_id
+from placeflow.v3.search import DemoSearch, ExternalSearchError, make_place_id
 from placeflow.v3.service import OneClickMeetService
 from placeflow.v3.walking import ANCHOR_RADIUS_M, MAX_LEG_MIN, distance_m, walk_minutes
 
@@ -47,8 +48,8 @@ def test_walk_minutes_rule():
 
 
 def test_region_lookup():
-    r = get_region("yeonnam")
-    assert region_of(r.lat, r.lng).region_id == "yeonnam"
+    r = get_region("YEONNAM")
+    assert region_of(r.lat, r.lng).region_id == "YEONNAM" and get_region("yeonnam") is r
     assert region_of(35.1, 129.0) is None  # 부산 → 미지원
 
 
@@ -142,55 +143,97 @@ def _pool(demo, names):
     return [(p, "mine") for p in demo.places if p.name in names]
 
 
-def _check_course(c, center, anchor_id=None):
-    ids = [s.place.place_id for s in c.stops]
-    assert 3 <= len(c.stops) <= 5
+def _check_course(c, center, seq, anchor_id=None, anchor_order=None):
+    ids = [s.place.place_id for s in c.places]
+    assert len(c.places) == len(seq) and 3 <= len(c.places) <= 5
     assert len(set(ids)) == len(ids)
-    for s in c.stops:
+    for k, s in enumerate(c.places):
+        assert s.visit_order == k + 1 and s.slot_category == seq[k]
         assert distance_m(center, s.place.pos) <= ANCHOR_RADIUS_M + 1
-    for a, b in zip(c.stops, c.stops[1:]):
+        if not s.is_anchor:
+            assert s.place.category_code == seq[k]          # 자리마다 지정 카테고리
+    for a, b in zip(c.places, c.places[1:]):
         assert walk_minutes(a.place.pos, b.place.pos) <= MAX_LEG_MIN
+    assert [l.estimated_minutes for l in c.walking_legs] == [s.walk_from_prev_min for s in c.places[1:]]
     if anchor_id:
-        assert sum(s.is_anchor for s in c.stops) == 1 and anchor_id in ids
+        assert sum(s.is_anchor for s in c.places) == 1
+        assert c.places[anchor_order - 1].place.place_id == anchor_id   # 필수 장소는 지정 위치
 
 
-def test_recommend_place_anchor(demo):
+def _req(anchor, seq, order=None, exclude=()):
+    return RecommendRequest(anchor=anchor, place_count=len(seq), category_sequence=seq, required_place_order=order,
+                            exclude_keys=list(exclude))
+
+
+def test_recommend_place_anchor_fixed_position(demo):
     pool = _pool(demo, {"연남 파스타집", "연남 감성 카페", "연남 와인바"})
-    anchor = next(p for p, _ in pool if p.name == "연남 파스타집")
-    res = recommend(RecommendRequest(anchor=Anchor(type="place", place_id=anchor.place_id)), pool, demo, anchor)
-    assert res.status == "ok" and len(res.courses) == 3
-    assert len({c.signature for c in res.courses}) == 3
+    anchor = next(p for p, _ in pool if p.name == "연남 감성 카페")
+    seq = ["MEAL", "CAFE", "ACTIVITY", "BAR"]
+    res = recommend(_req(Anchor(type="place", place_id=anchor.place_id), seq, 2), pool, demo, anchor)
+    assert res.reason is None and 1 <= len(res.courses) <= 3
+    assert len({c.candidate_key for c in res.courses}) == len(res.courses)
     for c in res.courses:
-        _check_course(c, anchor.pos, anchor.place_id)
-    assert all(s.done for s in res.steps)
+        _check_course(c, anchor.pos, seq, anchor.place_id, 2)
+        assert c.title == "연남 맛집·카페·놀거리·술집 코스"
+    assert res.walking_time_method == "COORDINATE_ESTIMATE"
+    # 저장 장소 우선: 첫 코스는 저장한 파스타집·와인바를 씀
+    assert res.courses[0].saved_count >= 3
     # 다시 추천: 이전 코스 제외
-    again = recommend(RecommendRequest(anchor=Anchor(type="place", place_id=anchor.place_id),
-                                       exclude_signatures=[c.signature for c in res.courses]), pool, demo, anchor)
-    assert again.status in ("ok", "no_result")
-    assert not {c.signature for c in again.courses} & {c.signature for c in res.courses}
+    again = recommend(_req(Anchor(type="place", place_id=anchor.place_id), seq, 2,
+                           [c.candidate_key for c in res.courses]), pool, demo, anchor)
+    assert not {c.candidate_key for c in again.courses} & {c.candidate_key for c in res.courses}
+    assert again.courses or again.reason == "NO_MORE_COURSES"
+
+
+def test_anchor_category_mismatch_kept(demo):
+    """필수 장소(카페)를 MEAL 자리에 둬도 그대로 넣음 (경고 없음)."""
+    pool = _pool(demo, {"연남 감성 카페"})
+    anchor = pool[0][0]
+    seq = ["MEAL", "ACTIVITY", "CAFE"]
+    res = recommend(_req(Anchor(type="place", place_id=anchor.place_id), seq, 1), pool, demo, anchor)
+    assert res.courses and all(c.places[0].place.place_id == anchor.place_id for c in res.courses)
 
 
 def test_recommend_region_anchor(demo):
-    r = get_region("jamsil")
-    res = recommend(RecommendRequest(anchor=Anchor(type="region", region_id="jamsil")), [], demo)
-    assert res.status == "ok"
+    r = get_region("JAMSIL")
+    seq = ["WALK", "CAFE", "MEAL"]
+    res = recommend(_req(Anchor(type="region", region_id="JAMSIL"), seq), [], demo)
+    assert res.reason is None and res.courses
     for c in res.courses:
-        _check_course(c, (r.lat, r.lng))
-        assert all(s.source == "external" for s in c.stops)
+        _check_course(c, (r.lat, r.lng), seq)
+        assert all(s.source == "external" for s in c.places)
 
 
 def test_recommend_failures(demo):
     far = demo.places[0].model_copy(update={"lat": 35.1, "lng": 129.0, "place_id": "far"})
-    res = recommend(RecommendRequest(anchor=Anchor(type="place", place_id="far")), [(far, "mine")], demo, far)
-    assert res.status == "unsupported_region"
-    res = recommend(RecommendRequest(anchor=Anchor(type="region", region_id="seochon")), [], DemoSearch(fail=True))
-    assert res.status == "external_api_failed"
-    res = recommend(RecommendRequest(anchor=Anchor(type="place", place_id="nope")), [], demo, None)
-    assert res.status == "anchor_not_found"
+    res = recommend(_req(Anchor(type="place", place_id="far"), ["MEAL", "CAFE", "BAR"], 1), [(far, "mine")], demo, far)
+    assert res.reason == "UNSUPPORTED_REGION" and res.courses == []
+    with pytest.raises(ExternalSearchError):
+        recommend(_req(Anchor(type="region", region_id="SEOCHON"), ["MEAL", "CAFE", "BAR"]), [], DemoSearch(fail=True))
+    with pytest.raises(DomainError):
+        recommend(_req(Anchor(type="place", place_id="nope"), ["MEAL", "CAFE", "BAR"], 1), [], demo, None)
+    res = recommend(_req(Anchor(type="region", region_id="JAMSIL"), ["SHOPPING"] * 5), [], demo)
+    assert res.reason == "INSUFFICIENT_PLACES" and res.courses == []
 
 
-def test_signature_order_independent():
-    assert signature_of(["b", "a"]) == signature_of(["a", "b"])
+def test_request_validation():
+    a = Anchor(type="region", region_id="JAMSIL")
+    with pytest.raises(Exception):
+        RecommendRequest(anchor=a, place_count=4, category_sequence=["MEAL"] * 3)      # 개수 불일치
+    with pytest.raises(Exception):
+        RecommendRequest(anchor=a, place_count=3, category_sequence=["MEAL"] * 3, required_place_order=1)
+    p = Anchor(type="place", place_id="x")
+    with pytest.raises(Exception):
+        RecommendRequest(anchor=p, place_count=3, category_sequence=["MEAL"] * 3)      # 위치 누락
+    with pytest.raises(Exception):
+        RecommendRequest(anchor=p, place_count=3, category_sequence=["MEAL"] * 3, required_place_order=4)
+    with pytest.raises(Exception):
+        RecommendRequest(anchor=a, place_count=3, category_sequence=["MEAL", "CAFE", "PARTY"])
+
+
+def test_candidate_key_depends_on_order():
+    assert candidate_key_of(["a", "b"]) != candidate_key_of(["b", "a"])
+    assert candidate_key_of(["a", "b"]) == candidate_key_of(["a", "b"])
 
 
 def test_replacement_candidates_walkable(demo):
@@ -216,10 +259,10 @@ def test_candidates_from_empty_records(demo):
 
 # ------------------------------------------------------------------ 서비스 · HTTP
 def test_service_flow(svc):
-    svc.seed_demo("me", "yeonnam")
+    svc.seed_demo("me", "YEONNAM")
     pid = svc.list_saved("me")["items"][0]["place"]["place_id"]
-    rec = svc.recommend("me", {"type": "place", "place_id": pid})
-    assert rec["status"] == "ok"
+    rec = svc.recommend("me", {"type": "place", "place_id": pid}, 3, ["MEAL", "CAFE", "WALK"], 1)
+    assert rec["reason"] is None and rec["courses"]
     d = svc.draft_from_recommendation("me", rec["courses"][0], {"type": "place", "place_id": pid})
     c = svc.apply_op("me", d["course"], {"type": "add_item", "stop_id": d["course"]["stops"][0]["stop_id"],
                                          "name": "점심", "amount": 20000})
@@ -260,9 +303,9 @@ def _call(base, method, path, body=None):
 
 def test_http_endpoints(http_server):
     b = http_server
-    assert _call(b, "POST", "/dev/seed", {"region_id": "hyehwa"})[0] == 200
+    assert _call(b, "POST", "/dev/seed", {"region_id": "HYEHWA"})[0] == 200
     s, r = _call(b, "GET", "/regions")
-    assert next(x for x in r["data"]["regions"] if x["region_id"] == "hyehwa")["saved_count"] == 4
+    assert next(x for x in r["data"]["regions"] if x["region_id"] == "HYEHWA")["saved_count"] == 4
     s, r = _call(b, "GET", "/places/search?q=" + urllib.request.quote("혜화 카페"))
     assert r["ok"] and r["data"]["status"] == "candidates" and r["data"]["candidates"][0]["place"]["subtitle"]
     s, r = _call(b, "GET", "/saved-places")
@@ -270,8 +313,10 @@ def test_http_endpoints(http_server):
     s, r = _call(b, "GET", "/places/" + pid)
     assert r["data"]["hearted"] and "hours_notice" in r["data"]["place"]
     anchor = {"type": "place", "place_id": pid}
-    rec = _call(b, "POST", "/recommendations", {"anchor": anchor})[1]["data"]
-    assert rec["status"] == "ok"
+    rec = _call(b, "POST", "/recommendations", {"anchor": anchor, "place_count": 3,
+                                                 "category_sequence": ["MEAL", "CAFE", "WALK"],
+                                                 "required_place_order": 1})[1]["data"]
+    assert rec["reason"] is None and rec["courses"]
     d = _call(b, "POST", "/courses/draft", {"recommended": rec["courses"][0], "anchor": anchor})[1]["data"]
     s, r = _call(b, "POST", "/courses", {"course": d["course"]})
     cid, course = r["data"]["course"]["course_id"], r["data"]["course"]
@@ -431,3 +476,97 @@ def test_embedded_cuisine_word_ignored():
 
     assert taxonomy.classify_text("일일식탁") is None
     assert taxonomy.classify_text("일식당 하루") == ("restaurant", "japanese")
+
+
+# ------------------------------------------------------------------ 카카오 · 제공자 선택 · 카테고리 추론
+_KAKAO_DOCS = {"documents": [
+    {"id": "1", "place_name": "오지다", "category_name": "음식점 > 일식 > 초밥,롤", "category_group_code": "FD6",
+     "phone": "02-1", "address_name": "서울 송파구 방이동 1", "road_address_name": "서울 송파구 백제고분로48길 24",
+     "x": "127.1123", "y": "37.5131", "place_url": "http://place.map.kakao.com/1"},
+    {"id": "2", "place_name": "방이 호프", "category_name": "음식점 > 술집 > 호프,요리주점", "category_group_code": "FD6",
+     "address_name": "서울 송파구 방이동 2", "road_address_name": "", "x": "127.1130", "y": "37.5135"},
+    {"id": "3", "place_name": "레드버튼 잠실점", "category_name": "스포츠,레저 > 보드카페", "category_group_code": "",
+     "address_name": "서울 송파구 잠실동 1", "x": "127.1100", "y": "37.5120"}]}
+
+
+class _Resp(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        pass
+
+
+def test_kakao_provider_parsing_and_nearby(monkeypatch):
+    from placeflow.v3.search import KakaoLocalSearch
+
+    calls = []
+
+    def fake(req, timeout=0):
+        calls.append((req.full_url, req.headers.get("Authorization")))
+        return _Resp(json.dumps(_KAKAO_DOCS).encode())
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    k = KakaoLocalSearch("KEY")
+    ps = k.search("오지다", 5)
+    assert [(p.name, p.category_code) for p in ps] == [("오지다", "MEAL"), ("방이 호프", "BAR"),
+                                                       ("레드버튼 잠실점", "ACTIVITY")]
+    assert ps[0].area_label == "방이동" and ps[0].map_url and calls[0][1] == "KakaoAK KEY"
+    assert "/keyword.json" in calls[0][0] and "size=5" in calls[0][0]
+    near = k.nearby(37.5131, 127.1123, 1000, code="BAR")
+    assert [p.name for p in near] == ["방이 호프"]
+    assert any("/category.json" in u for u, _ in calls) is False  # BAR 는 카카오 그룹 없음 → 키워드만
+    k.nearby(37.5131, 127.1123, 1000, code="MEAL")
+    assert any("/category.json" in u and "category_group_code=FD6" in u for u, _ in calls)
+
+
+def test_kakao_http_error(monkeypatch):
+    from placeflow.v3.search import KakaoLocalSearch
+
+    def boom(req, timeout=0):
+        raise urllib.error.HTTPError(req.full_url, 403, "x", {}, io.BytesIO(b'{"message":"App disabled"}'))
+
+    monkeypatch.setattr(urllib.request, "urlopen", boom)
+    with pytest.raises(ExternalSearchError) as e:
+        KakaoLocalSearch("KEY").search("x")
+    assert "403" in str(e.value) and "카카오맵" in str(e.value)
+
+
+def test_provider_selection(monkeypatch):
+    from placeflow.v3.search import KakaoLocalSearch, NaverLocalSearch, get_search_provider
+
+    for k in ("SEARCH_PROVIDER", "KAKAO_REST_API_KEY", "NAVER_CLIENT_ID", "NAVER_CLIENT_SECRET"):
+        monkeypatch.delenv(k, raising=False)
+    assert get_search_provider().name == "demo"
+    monkeypatch.setenv("NAVER_CLIENT_ID", "a")
+    monkeypatch.setenv("NAVER_CLIENT_SECRET", "b")
+    assert isinstance(get_search_provider(), NaverLocalSearch)
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "k")
+    assert isinstance(get_search_provider(), KakaoLocalSearch)
+    monkeypatch.setenv("SEARCH_PROVIDER", "naver")          # 명시하면 그 하나만
+    assert isinstance(get_search_provider(), NaverLocalSearch)
+    assert get_search_provider("demo_fail").name == "demo_fail"
+    with pytest.raises(ValueError):
+        get_search_provider("google")
+
+
+def test_naver_style_nearby_uses_region_name(demo):
+    """좌표 검색이 없는 제공자: 가까운 지원 지역명 + 검색어, 지역 밖은 빈 결과."""
+    r = get_region("YEONNAM")
+    near = demo.nearby(r.lat, r.lng, 1000, code="CAFE")
+    assert near and all(p.category_code == "CAFE" and distance_m((r.lat, r.lng), p.pos) <= 1000 for p in near)
+    assert demo.nearby(35.1, 129.0, 1000, code="CAFE") == []
+
+
+def test_category_inference(demo):
+    from placeflow.v3.category_infer import infer_category, with_code
+
+    cafe = next(p for p in demo.places if p.name == "연남 감성 카페")
+    bare = Place(place_id="sp:1", name=cafe.name, lat=cafe.lat, lng=cafe.lng, provider="backend")
+    assert bare.category_code is None
+    assert infer_category(bare, demo).category_code == "CAFE"             # 검색으로 같은 가게를 찾아서
+    odd = Place(place_id="sp:2", name="무명 분식", lat=37.0, lng=127.0, provider="backend")
+    assert infer_category(odd, DemoSearch(fail=True)).category_code == "MEAL"  # 검색 실패 → 이름 글자로
+    unknown = Place(place_id="sp:3", name="ZZZ", lat=37.0, lng=127.0, provider="backend")
+    assert infer_category(unknown, demo).category_code is None
+    assert with_code(unknown, "WALK").category_code == "WALK"

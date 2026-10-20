@@ -1,36 +1,36 @@
-"""AI 코스 추천 엔진 (V3: 도보 데이트 코스).
+"""AI 코스 추천 엔진 v2 (TRD R01: 방문 순서별 카테고리 + 필수 장소 위치).
 
-입력  기준 = 장소 1곳(보관함) 또는 지원 지역 1곳
-규칙  - 기준 반경 약 1km 안의 후보만 (내 보관함 + 공동 보관함 + 외부 추천)
-      - 장소 사이는 걸어서 10분 이내 (예상 도보시간)
-      - 코스 1개 = 장소 3~5곳, 기준 장소는 반드시 포함 (위치는 어디든 가능)
-      - 결과는 서로 겹치지 않는 코스 최대 3개. '다시 추천받기'는 직전 코스를 빼고 다시 계산
-      - 지역은 자동으로 넓히지 않음. 외부 검색이 실패하면 이번에는 코스를 만들지 않음
-상태  ok | unsupported_region | external_api_failed | not_enough_candidates | no_result | anchor_not_found
-
-점수 (높을수록 좋음)
-  저장한 장소 +5/곳 · 업종 다양성 +2.5/종류 · 같은 업종 연속 -4 · 맛집 3곳 이상/술집 2곳 이상 감점
-  맛집이나 카페 포함 +2 · 총 도보시간 -0.12/분 · 4곳 +2 (업종 다양성은 4종까지만 가점)
+입력  anchor           장소 1곳(필수 장소) 또는 지원 지역 1곳
+      place_count      전체 장소 수 3~5
+      category_sequence 방문 순서별 카테고리 코드 (원소 수 = place_count)
+      required_place_order  필수 장소의 방문 위치 1..place_count (장소 기준일 때만, 지역 기준은 생략)
+규칙  - 기준 반경 약 1km 안의 후보만 (내 보관함 + 공동 보관함 + 외부 후보)
+      - 각 자리에는 그 자리 카테고리의 장소만. 필수 장소는 지정한 자리에 고정
+        (필수 장소의 카테고리가 그 자리와 달라도 그대로 넣음 — 경고 없음)
+      - 이웃한 장소 사이 추정 도보 10분 이내 (좌표 기반 추정, 실제 경로 아님)
+      - 서로 다른 코스 최대 3개 (보통 2~3개, 유효한 코스가 1개면 1개). 저장 장소 우선
+      - 지역은 자동으로 넓히지 않음. 외부 검색이 실패하면 ExternalSearchError (→ API 503)
+결과 courses 가 비면 reason: INSUFFICIENT_PLACES | UNSUPPORTED_REGION | NO_MORE_COURSES(다시 추천에서 더 없음)
 """
 from __future__ import annotations
 
-from collections import deque
+import hashlib
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from .domain import Anchor, Course, CourseStop, MAX_STOPS, MIN_STOPS, Place
+from .categories import CODES, LABELS, CategoryCode
+from .domain import Anchor, Course, CourseStop, DomainError, MAX_STOPS, MIN_STOPS, Place
 from .regions import Region, get_region, region_of
 from .search import ExternalSearchError, SearchProvider
 from .walking import ANCHOR_RADIUS_M, MAX_LEG_MIN, distance_m, walk_minutes
 
-# 외부 추천 후보를 모을 때 '지역명 + 검색어' 조합 (네이버 지역검색은 한 번에 5건)
-EXTERNAL_QUERIES = ["맛집", "카페", "디저트", "술집", "산책", "공원", "소품샵", "전시", "놀거리", "공방"]
-MAX_EXTERNAL = 30
-BEAM = 1500
-FUN_CATS = {"activity", "culture", "nature", "shopping", "cafe"}
+MAX_EXTERNAL_PER_CODE = 12
+BEAM = 3000
+NEARBY_CODES = ("ACTIVITY", "CULTURE", "WALK", "CAFE")
 
 Source = Literal["mine", "couple", "external"]
+Reason = Literal["INSUFFICIENT_PLACES", "UNSUPPORTED_REGION", "NO_MORE_COURSES"]
 
 
 class Cand(BaseModel):
@@ -38,18 +38,26 @@ class Cand(BaseModel):
     source: Source
 
 
-class RecommendedStop(BaseModel):
-    order: int
+class WalkingLeg(BaseModel):
+    from_visit_order: int
+    to_visit_order: int
+    estimated_minutes: int
+
+
+class RecommendedPlace(BaseModel):
+    visit_order: int
     place: Place
     source: Source
     is_anchor: bool = False
-    external: bool = False
+    slot_category: str = Field(..., description="이 자리에 요청한 카테고리 코드")
     walk_from_prev_min: Optional[int] = None
 
 
 class RecommendedCourse(BaseModel):
-    signature: str = Field(..., description="코스 식별용 (장소 ID 정렬 결합). '다시 추천받기' 때 exclude 로 보냄")
-    stops: list[RecommendedStop]
+    candidate_key: str = Field(..., description="코스 구분 키 (같은 구성이면 같은 값). 영구 courseId 아님")
+    title: str
+    places: list[RecommendedPlace]
+    walking_legs: list[WalkingLeg]
     total_walk_min: int
     saved_count: int
     external_count: int
@@ -65,27 +73,41 @@ class Step(BaseModel):
 
 class RecommendRequest(BaseModel):
     anchor: Anchor
-    exclude_signatures: list[str] = Field(default_factory=list, description="이전에 보여준 코스 signature 들")
+    place_count: int = Field(..., ge=MIN_STOPS, le=MAX_STOPS)
+    category_sequence: list[CategoryCode] = Field(..., min_length=MIN_STOPS, max_length=MAX_STOPS)
+    required_place_order: Optional[int] = Field(None, ge=1, le=MAX_STOPS)
+    exclude_keys: list[str] = Field(default_factory=list, description="'다시 추천받기': 앞에서 받은 candidate_key 들")
     max_courses: int = Field(3, ge=1, le=3)
+
+    @model_validator(mode="after")
+    def _check(self):
+        if len(self.category_sequence) != self.place_count:
+            raise ValueError("categorySequence 원소 수는 placeCount 와 같아야 합니다.")
+        if self.anchor.type == "place":
+            if self.required_place_order is None:
+                raise ValueError("장소 기준 추천에는 requiredPlaceOrder 가 필요합니다.")
+            if self.required_place_order > self.place_count:
+                raise ValueError("requiredPlaceOrder 는 1~placeCount 범위여야 합니다.")
+        elif self.required_place_order is not None:
+            raise ValueError("지역 기준 추천에서는 requiredPlaceOrder 를 보내지 않습니다.")
+        return self
 
 
 class RecommendResult(BaseModel):
-    status: Literal["ok", "unsupported_region", "external_api_failed", "not_enough_candidates", "no_result",
-                    "anchor_not_found"]
     courses: list[RecommendedCourse] = Field(default_factory=list)
-    steps: list[Step] = Field(default_factory=list)
+    reason: Optional[Reason] = None
+    walking_time_method: Literal["COORDINATE_ESTIMATE"] = "COORDINATE_ESTIMATE"
     region: Optional[dict] = None
     candidates_count: int = 0
+    steps: list[Step] = Field(default_factory=list)
     message: Optional[str] = None
 
 
 STEP_DEFS = [("candidates", "근처 후보 찾는 중"), ("walking", "도보 거리 확인 중"), ("compose", "코스 구성 중")]
 MESSAGES = {
-    "unsupported_region": "아직 지원하지 않는 지역이에요. 지금은 연남·서촌·혜화·잠실·성신여대역·한성대입구역에서 코스를 추천해요.",
-    "external_api_failed": "후보를 가져오지 못했어요. 직접 검색은 계속 쓸 수 있어요. 이번에는 코스를 만들지 않아요.",
-    "not_enough_candidates": "걸어서 갈 수 있는 후보가 3곳 미만이라 코스를 내놓지 않아요. 지역은 자동으로 넓히지 않아요.",
-    "no_result": "조건에 맞는 코스를 찾지 못했어요. 조건을 바꿔 다시 추천받아 보세요. 지역은 자동으로 넓히지 않아요.",
-    "anchor_not_found": "기준 장소를 찾을 수 없어요. 보관함에서 다시 골라 주세요.",
+    "UNSUPPORTED_REGION": "아직 지원하지 않는 지역이에요. 지금은 연남·서촌·혜화·잠실·성신여대역·한성대입구역에서 코스를 추천해요.",
+    "INSUFFICIENT_PLACES": "조건(카테고리 순서·필수 장소 위치)에 맞게 걸어서 이을 장소가 부족해요. 카테고리를 바꾸거나 장소를 더 저장해 보세요. 지역은 자동으로 넓히지 않아요.",
+    "NO_MORE_COURSES": "같은 조건으로 더 추천할 코스가 없어요. 카테고리 순서를 바꿔 보세요.",
 }
 
 
@@ -93,209 +115,201 @@ def _steps(n_done: int) -> list[Step]:
     return [Step(key=k, label=l, done=i < n_done) for i, (k, l) in enumerate(STEP_DEFS)]
 
 
-def _fail(status: str, n_done: int, region: Optional[Region] = None, count: int = 0) -> RecommendResult:
-    return RecommendResult(status=status, steps=_steps(n_done), message=MESSAGES[status], candidates_count=count,
-                           region={"region_id": region.region_id, "name": region.name} if region else None)
+def _region_dict(r: Optional[Region]) -> Optional[dict]:
+    return {"region_id": r.region_id, "name": r.name} if r else None
+
+
+def _empty(reason: str, n_done: int, region: Optional[Region] = None, count: int = 0) -> RecommendResult:
+    return RecommendResult(reason=reason, steps=_steps(n_done), message=MESSAGES[reason], candidates_count=count,
+                           region=_region_dict(region))
 
 
 def signature_of(place_ids: list[str]) -> str:
-    return "|".join(sorted(place_ids))
+    """방문 순서까지 포함한 코스 구성 문자열."""
+    return ">".join(place_ids)
+
+
+def candidate_key_of(place_ids: list[str]) -> str:
+    return "crs_" + hashlib.sha1(signature_of(place_ids).encode("utf-8")).hexdigest()[:10]
+
+
+def course_title(region: Region, sequence: list[str]) -> str:
+    return f"{region.name} {'·'.join(dict.fromkeys(LABELS[c] for c in sequence))} 코스"
 
 
 # ------------------------------------------------------------------ 후보 수집
-def gather_candidates(center: tuple[float, float], region: Region, user_pool: list[tuple[Place, str]],
+def gather_candidates(center: tuple[float, float], codes: set[str], user_pool: list[tuple[Place, str]],
                       search: SearchProvider, radius_m: int = ANCHOR_RADIUS_M,
-                      exclude_ids: frozenset = frozenset()) -> list[Cand]:
-    """반경 안의 저장 장소 + 외부 검색 장소. 외부 검색 실패 시 ExternalSearchError 를 그대로 올림."""
-    out: dict[str, Cand] = {}
+                      exclude_ids: frozenset = frozenset()) -> dict[str, list[Cand]]:
+    """카테고리 코드별 후보 (저장 장소 먼저, 외부는 가까운 순 최대 12곳). 외부 검색 실패는 ExternalSearchError 전파."""
+    by_code: dict[str, list[Cand]] = {c: [] for c in codes}
+    saved: list[Cand] = []
     for p, src in user_pool:
-        if p.place_id not in exclude_ids and distance_m(center, p.pos) <= radius_m:
-            out[p.place_id] = Cand(place=p, source="couple" if src == "couple" else "mine")
-    externals: dict[str, Place] = {}
-    for w in EXTERNAL_QUERIES:
-        for p in search.search(f"{region.area_query} {w}", 5):  # ExternalSearchError 전파
-            externals.setdefault(p.place_id, p)
-    ext = []
-    for p in externals.values():
-        if p.place_id in out or p.place_id in exclude_ids or distance_m(center, p.pos) > radius_m:
+        if p.place_id in exclude_ids or distance_m(center, p.pos) > radius_m:
             continue
-        # 저장 장소와 같은 가게(이름 같고 80m 이내)는 중복으로 보고 제외
-        if any(c.place.name.replace(" ", "") == p.name.replace(" ", "") and distance_m(c.place.pos, p.pos) < 80
-               for c in out.values()):
-            continue
-        ext.append(p)
-    ext.sort(key=lambda p: distance_m(center, p.pos))
-    for p in ext[:MAX_EXTERNAL]:
-        out[p.place_id] = Cand(place=p, source="external")
-    return list(out.values())
+        c = Cand(place=p, source="couple" if src == "couple" else "mine")
+        saved.append(c)
+        if p.category_code in by_code:
+            by_code[p.category_code].append(c)
+    for code in codes:
+        ext = []
+        for p in search.nearby(center[0], center[1], radius_m, code=code, limit=40):
+            if p.place_id in exclude_ids or any(s.place.place_id == p.place_id for s in saved):
+                continue
+            # 저장 장소와 같은 가게(이름 같고 80m 이내)는 중복
+            if any(s.place.name.replace(" ", "") == p.name.replace(" ", "") and distance_m(s.place.pos, p.pos) < 80
+                   for s in saved):
+                continue
+            ext.append(p)
+        ext.sort(key=lambda p: distance_m(center, p.pos))
+        by_code[code] += [Cand(place=p, source="external") for p in ext[:MAX_EXTERNAL_PER_CODE]]
+    return by_code
 
 
-# ------------------------------------------------------------------ 점수
+# ------------------------------------------------------------------ 탐색 (자리 채우기)
 def _node_score(c: Cand) -> float:
-    return 5.0 if c.source in ("mine", "couple") else 0.0
+    return 5.0 if c.source != "external" else 0.0
 
 
-def _path_score(path: list[Cand], legs: list[int]) -> float:
-    cats = [c.place.category for c in path]
-    s = sum(_node_score(c) for c in path)
-    s += min(len(set(cats)), 4) * 2.5
-    s -= sum(4 for a, b in zip(cats, cats[1:]) if a == b)
-    s -= max(0, cats.count("restaurant") - 2) * 3 + max(0, cats.count("bar") - 1) * 2
-    if "restaurant" in cats or "cafe" in cats:
-        s += 2
-    s -= sum(legs) * 0.12
-    s += {4: 2.0}.get(len(path), 0)  # 4곳 코스를 기본으로 선호 (5곳은 저장 장소가 많을 때만)
-    return round(s, 3)
+def _fill_slots(slots: list[list[int]], nodes: list[Cand], anchor_idx: Optional[int],
+                anchor_pos: Optional[int]) -> list[tuple[float, list[int], list[int]]]:
+    """slots[i] = i번째 자리에 넣을 수 있는 노드 번호들. 이웃 도보 10분 이내, 중복 없음.
+    반환: (점수, 경로, 구간 도보분) — 점수 높은 순."""
+    walk_cache: dict[tuple[int, int], int] = {}
+
+    def w(a: int, b: int) -> int:
+        k = (a, b) if a < b else (b, a)
+        if k not in walk_cache:
+            walk_cache[k] = walk_minutes(nodes[a].place.pos, nodes[b].place.pos)
+        return walk_cache[k]
+
+    beam: list[tuple[float, list[int], list[int]]] = [(0.0, [], [])]
+    for i, options in enumerate(slots):
+        nxt = []
+        for sc, path, legs in beam:
+            for n in options:
+                if n in path:
+                    continue
+                leg = w(path[-1], n) if path else None
+                if leg is not None and leg > MAX_LEG_MIN:
+                    continue
+                # 필수 장소 자리 앞이면, 남은 칸 수 안에 필수 장소까지 걸어갈 수 있어야 함 (가지치기)
+                if anchor_idx is not None and i < anchor_pos and n != anchor_idx:
+                    if w(n, anchor_idx) > (MAX_LEG_MIN + 1) * (anchor_pos - i):
+                        continue
+                new_legs = legs + ([leg] if leg is not None else [])
+                nxt.append((sc + _node_score(nodes[n]) - 0.12 * (leg or 0), path + [n], new_legs))
+        nxt.sort(key=lambda x: -x[0])
+        beam = nxt[:BEAM]
+        if not beam:
+            return []
+    return beam
 
 
 def _reasons(path: list[Cand], legs: list[int]) -> list[str]:
     saved = sum(1 for c in path if c.source != "external")
-    labels = list(dict.fromkeys(c.place.category_label for c in path))
     r = []
     if saved:
         r.append(f"저장한 장소 {saved}곳 포함")
-    r.append(" · ".join(labels[:4]))
     if legs:
-        r.append(f"장소 사이 최대 도보 {max(legs)}분")
+        r.append(f"장소 사이 최대 도보 {max(legs)}분 (추정)")
     return r
-
-
-# ------------------------------------------------------------------ 탐색
-def _search_paths(nodes: list[Cand], adj: dict[int, set[int]], legs: dict[tuple[int, int], int],
-                  anchor_idx: Optional[int]) -> list[tuple[float, list[int]]]:
-    """길이 3~5 경로를 빔 탐색으로. 기준 장소가 있으면 그 노드에서 양쪽으로 늘려 '기준 포함'을 보장."""
-    def leg_list(path):
-        return [legs[(a, b)] for a, b in zip(path, path[1:])]
-
-    if anchor_idx is not None:
-        frontier = [[anchor_idx]]
-    else:
-        order = sorted(range(len(nodes)), key=lambda i: -_node_score(nodes[i]))
-        frontier = [[i] for i in order]
-    found: dict[tuple, tuple[float, list[int]]] = {}
-    for length in range(2, MAX_STOPS + 1):
-        nxt = []
-        for path in frontier:
-            ends = [(path[-1], False)] + ([(path[0], True)] if anchor_idx is not None and len(path) > 1 else [])
-            for end, at_head in ends:
-                for nb in adj[end]:
-                    if nb in path:
-                        continue
-                    np_ = [nb] + path if at_head else path + [nb]
-                    nxt.append(np_)
-        uniq = {}
-        for p in nxt:
-            key = tuple(p) if tuple(p) <= tuple(reversed(p)) else tuple(reversed(p))
-            if key not in uniq:
-                uniq[key] = (_path_score([nodes[i] for i in p], leg_list(p)), p)
-        ranked = sorted(uniq.values(), key=lambda x: -x[0])[:BEAM]
-        frontier = [p for _, p in ranked]
-        if length >= MIN_STOPS:
-            for sc, p in ranked:
-                key = tuple(p) if tuple(p) <= tuple(reversed(p)) else tuple(reversed(p))
-                found[key] = (sc, p)
-        if not frontier:
-            break
-    return sorted(found.values(), key=lambda x: -x[0])
 
 
 def recommend(req: RecommendRequest, user_pool: list[tuple[Place, str]], search: SearchProvider,
               anchor_place: Optional[Place] = None) -> RecommendResult:
+    """외부 검색 실패는 ExternalSearchError, 기준 장소 없음은 DomainError('place_not_found')."""
     # 0) 기준 확인
     if req.anchor.type == "place":
         if anchor_place is None:
-            return _fail("anchor_not_found", 0)
+            raise DomainError("place_not_found", "기준 장소를 찾을 수 없어요. 보관함에서 다시 골라 주세요.")
         center = anchor_place.pos
         region = region_of(*center)
     else:
         region = get_region(req.anchor.region_id or "")
         center = (region.lat, region.lng) if region else None
     if region is None:
-        return _fail("unsupported_region", 0)
+        return _empty("UNSUPPORTED_REGION", 0)
+
+    seq = list(req.category_sequence)
+    anchor_pos = (req.required_place_order - 1) if anchor_place is not None else None
+    codes = {c for i, c in enumerate(seq) if i != anchor_pos}
 
     # 1) 근처 후보 찾기
-    try:
-        exclude = frozenset([anchor_place.place_id]) if anchor_place else frozenset()
-        cands = gather_candidates(center, region, user_pool, search, exclude_ids=exclude)
-    except ExternalSearchError:
-        return _fail("external_api_failed", 0, region)
+    exclude = frozenset([anchor_place.place_id]) if anchor_place else frozenset()
+    by_code = gather_candidates(center, codes, user_pool, search, exclude_ids=exclude)  # ExternalSearchError 전파
     nodes: list[Cand] = []
+    index: dict[str, int] = {}
+
+    def node_of(c: Cand) -> int:
+        if c.place.place_id not in index:
+            index[c.place.place_id] = len(nodes)
+            nodes.append(c)
+        return index[c.place.place_id]
+
     anchor_idx = None
-    if anchor_place:
+    if anchor_place is not None:
         src = next((s for p, s in user_pool if p.place_id == anchor_place.place_id), "mine")
-        nodes.append(Cand(place=anchor_place, source="couple" if src == "couple" else "mine"))
-        anchor_idx = 0
-    nodes += cands
+        anchor_idx = node_of(Cand(place=anchor_place, source="couple" if src == "couple" else "mine"))
+    slot_nodes: dict[str, list[int]] = {code: [node_of(c) for c in lst] for code, lst in by_code.items()}
+    slots = [[anchor_idx] if i == anchor_pos else slot_nodes.get(code, []) for i, code in enumerate(seq)]
+    if any(not s for s in slots):
+        return _empty("INSUFFICIENT_PLACES", 2, region, len(nodes))
 
-    # 2) 도보 거리 확인 (10분 이내만 연결)
-    adj: dict[int, set[int]] = {i: set() for i in range(len(nodes))}
-    legs: dict[tuple[int, int], int] = {}
-    for i in range(len(nodes)):
-        for j in range(i + 1, len(nodes)):
-            m = walk_minutes(nodes[i].place.pos, nodes[j].place.pos)
-            if m <= MAX_LEG_MIN:
-                adj[i].add(j)
-                adj[j].add(i)
-                legs[(i, j)] = legs[(j, i)] = m
-
-    def component(start):
-        seen, q = {start}, deque([start])
-        while q:
-            for nb in adj[q.popleft()]:
-                if nb not in seen:
-                    seen.add(nb)
-                    q.append(nb)
-        return seen
-
-    reach = len(component(anchor_idx)) if anchor_idx is not None else \
-        max((len(component(i)) for i in range(len(nodes))), default=0)
-    if reach < MIN_STOPS:
-        return _fail("not_enough_candidates", 2, region, len(nodes))
-
-    # 3) 코스 구성
-    ranked = _search_paths(nodes, adj, legs, anchor_idx)
-    excluded = set(req.exclude_signatures)
-    chosen: list[tuple[float, list[int]]] = []
-    for max_overlap in (1, 2):  # 먼저 '기준 외 겹침 1곳 이하'로 고르고, 모자라면 2곳까지 허용
-        for sc, p in ranked:
+    # 2)·3) 도보 거리 확인 + 코스 구성
+    ranked = _fill_slots(slots, nodes, anchor_idx, anchor_pos if anchor_pos is not None else 0)
+    if not ranked:
+        return _empty("INSUFFICIENT_PLACES", 3, region, len(nodes))
+    excluded = set(req.exclude_keys)
+    chosen: list[tuple[float, list[int], list[int]]] = []
+    skipped_by_exclude = False
+    for max_overlap in (1, 2):  # 기준 외 겹침 1곳 이하 먼저, 모자라면 2곳까지
+        for sc, p, lg in ranked:
             if len(chosen) >= req.max_courses:
                 break
-            sig = signature_of([nodes[i].place.place_id for i in p])
-            if sig in excluded or any(p == q for _, q in chosen):
+            key = candidate_key_of([nodes[i].place.place_id for i in p])
+            if key in excluded:
+                skipped_by_exclude = True
+                continue
+            if any(p == q for _, q, _ in chosen):
                 continue
             others = set(i for i in p if i != anchor_idx)
-            if any(len(others & set(i for i in q if i != anchor_idx)) > max_overlap for _, q in chosen):
+            if any(len(others & set(i for i in q if i != anchor_idx)) > max_overlap for _, q, _ in chosen):
                 continue
-            chosen.append((sc, p))
+            chosen.append((sc, p, lg))
     if not chosen:
-        return _fail("no_result", 3, region, len(nodes))
+        return _empty("NO_MORE_COURSES" if skipped_by_exclude else "INSUFFICIENT_PLACES", 3, region, len(nodes))
 
+    title = course_title(region, seq)
     courses = []
-    for sc, p in chosen:
-        lg = [legs[(a, b)] for a, b in zip(p, p[1:])]
-        stops = [RecommendedStop(order=k + 1, place=nodes[i].place, source=nodes[i].source,
-                                 is_anchor=(i == anchor_idx), external=nodes[i].source == "external",
-                                 walk_from_prev_min=lg[k - 1] if k else None) for k, i in enumerate(p)]
+    for sc, p, lg in chosen:
+        places = [RecommendedPlace(visit_order=k + 1, place=nodes[i].place, source=nodes[i].source,
+                                   is_anchor=(i == anchor_idx), slot_category=seq[k],
+                                   walk_from_prev_min=lg[k - 1] if k else None) for k, i in enumerate(p)]
         courses.append(RecommendedCourse(
-            signature=signature_of([nodes[i].place.place_id for i in p]), stops=stops, total_walk_min=sum(lg),
-            saved_count=sum(1 for i in p if nodes[i].source != "external"),
-            external_count=sum(1 for i in p if nodes[i].source == "external"), score=sc,
+            candidate_key=candidate_key_of([nodes[i].place.place_id for i in p]), title=title, places=places,
+            walking_legs=[WalkingLeg(from_visit_order=k + 1, to_visit_order=k + 2, estimated_minutes=m)
+                          for k, m in enumerate(lg)],
+            total_walk_min=sum(lg), saved_count=sum(1 for i in p if nodes[i].source != "external"),
+            external_count=sum(1 for i in p if nodes[i].source == "external"), score=round(sc, 3),
             reasons=_reasons([nodes[i] for i in p], lg)))
-    return RecommendResult(status="ok", courses=courses, steps=_steps(3), candidates_count=len(nodes),
-                           region={"region_id": region.region_id, "name": region.name})
+    return RecommendResult(courses=courses, steps=_steps(3), candidates_count=len(nodes), region=_region_dict(region))
 
 
 # ------------------------------------------------------------------ 코스 편집 보조
 def replacement_candidates(course_places: list[Place], index: int, user_pool: list[tuple[Place, str]],
-                           search: SearchProvider, limit: int = 8) -> list[Cand]:
-    """'장소 교체' 시트: 앞뒤 장소와 모두 도보 10분 이내이고 코스에 없는 후보 (저장한 장소 먼저)."""
+                           search: SearchProvider, limit: int = 8, code: Optional[str] = None) -> list[Cand]:
+    """'장소 교체': 앞뒤 장소와 모두 도보 10분 이내이고 코스에 없는 후보.
+    code 를 주지 않으면 교체할 장소와 같은 카테고리. 저장한 장소 먼저."""
     target = course_places[index]
-    region = region_of(*target.pos)
-    if region is None:
-        return []
-    in_course = {p.place_id for p in course_places}
+    code = code or target.category_code
+    in_course = frozenset(p.place_id for p in course_places)
     neighbors = [course_places[i] for i in (index - 1, index + 1) if 0 <= i < len(course_places)]
-    pool = gather_candidates(target.pos, region, user_pool, search, exclude_ids=frozenset(in_course))
+    if code:
+        pool = gather_candidates(target.pos, {code}, user_pool, search, exclude_ids=in_course)[code]
+    else:
+        pool = [Cand(place=p, source="external") for p in search.nearby(target.lat, target.lng, ANCHOR_RADIUS_M)
+                if p.place_id not in in_course]
     ok = [c for c in pool if all(walk_minutes(n.pos, c.place.pos) <= MAX_LEG_MIN for n in neighbors)]
     ok.sort(key=lambda c: (c.source == "external", sum(walk_minutes(n.pos, c.place.pos) for n in neighbors)))
     return ok[:limit]
@@ -303,22 +317,25 @@ def replacement_candidates(course_places: list[Place], index: int, user_pool: li
 
 def nearby_places(place: Place, user_pool: list[tuple[Place, str]], search: SearchProvider,
                   limit: int = 3) -> list[Cand]:
-    """장소 상세 '주변 놀거리': 도보 10분 이내의 놀거리·카페 (저장한 장소 먼저). 외부 검색 실패 시 저장 장소만."""
-    region = region_of(*place.pos)
-    if region is None:
-        return []
+    """장소 상세 '주변 놀거리': 도보 10분 이내의 놀거리·전시·산책·카페 (저장한 장소 먼저).
+    외부 검색이 실패하면 저장 장소만."""
     try:
-        pool = gather_candidates(place.pos, region, user_pool, search, exclude_ids=frozenset([place.place_id]))
+        by_code = gather_candidates(place.pos, set(NEARBY_CODES), user_pool, search,
+                                    exclude_ids=frozenset([place.place_id]))
+        pool = [c for code in NEARBY_CODES for c in by_code[code]]
     except ExternalSearchError:
         pool = [Cand(place=p, source="couple" if s == "couple" else "mine") for p, s in user_pool
-                if p.place_id != place.place_id]
-    ok = [c for c in pool if c.place.category in FUN_CATS and walk_minutes(place.pos, c.place.pos) <= MAX_LEG_MIN]
+                if p.place_id != place.place_id and p.category_code in NEARBY_CODES]
+    seen, ok = set(), []
+    for c in pool:
+        if c.place.place_id not in seen and walk_minutes(place.pos, c.place.pos) <= MAX_LEG_MIN:
+            seen.add(c.place.place_id)
+            ok.append(c)
     ok.sort(key=lambda c: (c.source == "external", walk_minutes(place.pos, c.place.pos)))
     return ok[:limit]
 
 
 def to_course_draft(rec: RecommendedCourse, owner_id: str, anchor: Anchor, title: Optional[str] = None) -> Course:
     """'이 코스 선택' → 코스 상세 드래프트 (아직 저장 전, 항목 없음)."""
-    stops = [CourseStop(place=s.place, is_anchor=s.is_anchor, external=s.external) for s in rec.stops]
-    area = rec.stops[0].place.area_label or ""
-    return Course(owner_id=owner_id, title=title or f"{area} 데이트 코스".strip(), anchor=anchor, stops=stops)
+    stops = [CourseStop(place=s.place, is_anchor=s.is_anchor, external=s.source == "external") for s in rec.places]
+    return Course(owner_id=owner_id, title=title or rec.title, anchor=anchor, stops=stops)

@@ -17,18 +17,19 @@ class Region:
 
 
 REGIONS: list[Region] = [
-    Region("yeonnam", "연남", "연남동", 37.5626, 126.9255),
-    Region("seochon", "서촌", "서촌", 37.5794, 126.9696),
-    Region("hyehwa", "혜화", "혜화", 37.5822, 127.0019),
-    Region("jamsil", "잠실", "잠실", 37.5110, 127.0980, 1500),
-    Region("sungshin", "성신여대역", "성신여대", 37.5927, 127.0167),
-    Region("hansung", "한성대입구역", "한성대입구", 37.5884, 127.0062),
+    Region("YEONNAM", "연남", "연남동", 37.5626, 126.9255),
+    Region("SEOCHON", "서촌", "서촌", 37.5794, 126.9696),
+    Region("HYEHWA", "혜화", "혜화", 37.5822, 127.0019),
+    Region("JAMSIL", "잠실", "잠실", 37.5110, 127.0980, 1500),
+    Region("SUNGSHIN", "성신여대역", "성신여대", 37.5927, 127.0167),
+    Region("HANSUNG", "한성대입구역", "한성대입구", 37.5884, 127.0062),
 ]
 BY_ID = {r.region_id: r for r in REGIONS}
 
 
 def get_region(region_id: str) -> Region | None:
-    return BY_ID.get(region_id)
+    """TRD 식별자(JAMSIL 등). 소문자로 와도 찾음."""
+    return BY_ID.get((region_id or "").upper())
 
 
 def region_of(lat: float, lng: float) -> Region | None:

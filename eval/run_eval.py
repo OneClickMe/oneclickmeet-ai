@@ -30,7 +30,7 @@ def name_match(expected: str, got: str) -> bool:
 
 def evaluate(llm="heuristic", model=None, geo="fixture", ocr="sidecar", verbose=False):
     pipe = build_pipeline(llm, model, geo, ocr, fixtures=str(ROOT / "eval/fixtures/pages"),
-                          geo_fixture=str(ROOT / "eval/fixtures/geo_places.json"))
+                          geo_fixture=str(ROOT / "eval/fixtures/geo_places.json"), link_body=True)  # 평가 픽스처는 본문 기준
     rows = [json.loads(l) for l in (ROOT / "eval/dataset.jsonl").read_text(encoding="utf-8").splitlines() if l]
     fields = ["status", "place_found", "name", "primary_category", "sub_category", "sigungu", "tags_any", "geo_matched"]
     hits = {f: 0 for f in fields}
